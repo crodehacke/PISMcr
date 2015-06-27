@@ -30,13 +30,15 @@ enum MaskValue {
   MASK_ICE_FREE_BEDROCK = 0,
   MASK_GROUNDED         = 2,
   MASK_FLOATING         = 3,
-  MASK_ICE_FREE_OCEAN   = 4
+  MASK_ICE_FREE_OCEAN   = 4,
+  MASK_ICE_LAKE         = 5
 };
 
 namespace mask {
   //! \brief An ocean cell (floating ice or ice-free).
   inline bool ocean(int M) {
-    return M >= MASK_FLOATING;
+    //return M >= MASK_FLOATING;
+    return (M == MASK_FLOATING) || (M == MASK_ICE_FREE_OCEAN);
   }
   //! \brief Grounded cell (grounded ice or ice-free).
   inline bool grounded(int M) {
@@ -61,6 +63,10 @@ namespace mask {
   }
   inline bool ice_free_land(int M) {
     return grounded(M) && ice_free(M);
+  }
+  //! \brief Floating ice surrounded by grounded ice
+  inline bool lake(int M) {
+    return lake(M); //(M == MASK_ICE_LAKE);
   }
 }
 
@@ -205,6 +211,15 @@ public:
   {
     return (ice_free_ocean(i + 1, j) || ice_free_ocean(i - 1, j) || ice_free_ocean(i, j + 1) || ice_free_ocean(i, j - 1));
   }
+
+  //ccr
+  //! \brief Ice-free margin (at least one of four neighbors has ice).
+  inline bool lake(int i, int j)
+  {
+    return (grounded_ice(i + 1, j) && grounded_ice(i - 1, j) && grounded_ice(i, j + 1) && grounded_ice(i, j - 1) && floating_ice(i, j) );
+  }
+
+
 
 protected:
   const IceModelVec2Int &mask;

@@ -101,6 +101,7 @@ void OceanKill::init() {
 
 // Updates mask and ice thickness, including ghosts.
 void OceanKill::update(IceModelVec2Int &pism_mask, IceModelVec2S &ice_thickness) {
+  MaskQuery M(pism_mask);
   IceModelVec::AccessList list;
   list.add(m_ocean_kill_mask);
   list.add(pism_mask);
@@ -110,14 +111,16 @@ void OceanKill::update(IceModelVec2Int &pism_mask, IceModelVec2S &ice_thickness)
   assert(m_ocean_kill_mask.get_stencil_width() >= GHOSTS);
   assert(ice_thickness.get_stencil_width()     >= GHOSTS);
 
-  for (PointsWithGhosts p(*m_grid, GHOSTS); p; p.next()) {
+  for (Points p(*m_grid); p; p.next()) {
     const int i = p.i(), j = p.j();
-
-    if (m_ocean_kill_mask(i, j) > 0.5) {
+    if (m_ocean_kill_mask(i, j) > 0.5 && not M.lake(i, j)) {
       pism_mask(i, j)     = MASK_ICE_FREE_OCEAN;
       ice_thickness(i, j) = 0.0;
     }
   }
+  //ccr Update ghost, since we do now loop over "internal" without GHOSTS
+  pism_mask.update_ghosts();
+  ice_thickness.update_ghosts();
 }
 
 void OceanKill::add_vars_to_output_impl(const std::string &keyword, std::set<std::string> &result) {
