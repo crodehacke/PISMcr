@@ -58,7 +58,8 @@ void FloatKill::update(IceModelVec2Int &pism_mask, IceModelVec2S &ice_thickness)
 
   for (Points p(*m_grid); p; p.next()) {
     const int i = p.i(), j = p.j();
-    if (M.floating_ice(i, j)) {
+    //ccr if (M.floating_ice(i, j)) {
+    if (M.floating_ice(i, j) && not M.lake(i, j)) {
       ice_thickness(i, j) = 0.0;
       pism_mask(i, j)     = MASK_ICE_FREE_OCEAN;
     }
