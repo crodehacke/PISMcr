@@ -516,6 +516,14 @@ void IceModel::massContExplicitStep() {
     total_sum_divQ_SSA            = 0,
     total_surface_ice_flux        = 0;
 
+  double //ccr
+    // totals over the processor's domain:
+    proc_land_flux                = 0,
+    proc_ocean_flux               = 0,
+    // totals over all processors:
+    total_land_flux               = 0,
+    total_ocean_flux              = 0;
+
   const double dx = m_grid->dx(), dy = m_grid->dy();
   bool
     include_bmr_in_continuity = m_config->get_boolean("include_bmr_in_continuity"),
@@ -524,6 +532,9 @@ void IceModel::massContExplicitStep() {
     compute_cumulative_grounded_basal_flux = grounded_basal_flux_2D_cumulative.was_created(),
     compute_cumulative_floating_basal_flux = floating_basal_flux_2D_cumulative.was_created(),
     compute_flux_divergence = flux_divergence.was_created();
+  bool //ccr
+    compute_cumulative_land_flux  = land_flux_2D_cumulative.was_created(),
+    compute_cumulative_ocean_flux = ocean_flux_2D_cumulative.was_created();
 
   double ice_density = m_config->get_double("ice_density"),
     meter_per_s_to_kg_per_m2 = dt * ice_density;
@@ -593,6 +604,16 @@ void IceModel::massContExplicitStep() {
     list.add(flux_divergence);
   }
 
+  //ccr -- begin
+  if (compute_cumulative_land_flux) {
+    list.add(land_flux_2D_cumulative);
+  }
+
+  if (compute_cumulative_ocean_flux) {
+    list.add(ocean_flux_2D_cumulative);
+  }
+  //ccr -- end
+
   MaskQuery mask(vMask);
 
   ParallelSection loop(m_grid->com);
@@ -620,6 +641,9 @@ void IceModel::massContExplicitStep() {
         H_to_Href_flux       = 0.0, // units: [m]
         Href_to_H_flux       = 0.0, // units: [m]
         nonneg_rule_flux     = 0.0; // units: [m]
+      double //ccr ???
+	land_flux            = 0.0, // units: []
+	ocean_flux           = 0.0; // units: []
 
       if (include_bmr_in_continuity) {
         my_basal_melt_rate = basal_melt_rate(i, j);
@@ -752,6 +776,25 @@ void IceModel::massContExplicitStep() {
         floating_basal_flux_2D_cumulative(i, j) += -my_basal_melt_rate * meter_per_s_to_kg_per_m2;
       }
 
+
+      //ccr -- begin
+      if (compute_cumulative_land_flux && (mask.grounded(i, j) || mask.lake(i, j))) {
+        // my_basal_melt_rate has the units of [m s-1]; convert to [kg m-2]
+        land_flux_2D(i, j)  = (surface_mass_balance-my_basal_melt_rate) * meter_per_s_to_kg_per_m2;
+	land_flux_2D_cumulative(i, j) += land_flux_2D(i, j);
+        //ccr-old land_flux_2D_cumulative(i, j) += (surface_mass_balance-my_basal_melt_rate) * meter_per_s_to_kg_per_m2;
+      }
+
+      if (compute_cumulative_ocean_flux && (mask.ocean(i, j) && not mask.lake(i, j))) {
+        // my_basal_melt_rate has the units of [m s-1]; convert to [kg m-2]
+	ocean_flux_2D(i, j) = (surface_mass_balance-my_basal_melt_rate) * meter_per_s_to_kg_per_m2; // !! FIXME here += if calving is computered earlier
+	ocean_flux_2D_cumulative(i, j) += ocean_flux_2D(i, j);
+        //ccr-old ocean_flux_2D_cumulative(i, j) += (surface_mass_balance-my_basal_melt_rate) * meter_per_s_to_kg_per_m2;
+	//FIXME: ANY CALVING is MISSING
+      }
+      //ccr -- end
+
+
       // time-series accounting:
       {
         // all these are in units of [kg]
@@ -760,6 +803,17 @@ void IceModel::massContExplicitStep() {
         } else {
           proc_sub_shelf_ice_flux      += - my_basal_melt_rate * meter_per_s_to_kg;
         }
+	//ccr -- begin
+	if (mask.grounded(i, j) || mask.lake(i, j)) {
+	  proc_land_flux += (surface_mass_balance-my_basal_melt_rate) * meter_per_s_to_kg_per_m2;
+	}
+	if (mask.ocean(i, j) && not mask.lake(i, j)) {
+        // my_basal_melt_rate has the units of [m s-1]; convert to [kg m-2]
+        proc_ocean_flux  += (surface_mass_balance-my_basal_melt_rate) * meter_per_s_to_kg_per_m2;
+	//FIXME: ANY CALVING is MISSING
+	}
+	//ccr -- end
+
 
         proc_surface_ice_flux        +=   surface_mass_balance * meter_per_s_to_kg;
         proc_sum_divQ_SIA            += - divQ_SIA             * meter_per_s_to_kg;
@@ -777,26 +831,53 @@ void IceModel::massContExplicitStep() {
 
   // flux accounting
   {
-    // combine data to perform one reduction call instead of 8:
-    double tmp_local[8] = {proc_grounded_basal_ice_flux,
+    // combine data to perform one reduction call instead of 10:
+    const unsigned int tmp_local_length = 10;
+    double tmp_local[tmp_local_length] = {proc_grounded_basal_ice_flux,
                            proc_nonneg_rule_flux,
                            proc_sub_shelf_ice_flux,
                            proc_surface_ice_flux,
                            proc_sum_divQ_SIA,
                            proc_sum_divQ_SSA,
                            proc_Href_to_H_flux,
-                           proc_H_to_Href_flux};
-    double tmp_global[8];
-    GlobalSum(m_grid->com, tmp_local, tmp_global, 8);
+                           proc_H_to_Href_flux,
+                           proc_land_flux,
+                           proc_ocean_flux};
 
-    total_grounded_basal_ice_flux = tmp_global[0];
-    total_nonneg_rule_flux        = tmp_global[1];
-    total_sub_shelf_ice_flux      = tmp_global[2];
-    total_surface_ice_flux        = tmp_global[3];
-    total_sum_divQ_SIA            = tmp_global[4];
-    total_sum_divQ_SSA            = tmp_global[5];
-    total_Href_to_H_flux          = tmp_global[6];
-    total_H_to_Href_flux          = tmp_global[7];
+    double tmp_global[tmp_local_length];
+    GlobalSum(m_grid->com, tmp_local, tmp_global, tmp_local_length);
+
+    unsigned int tmp_local_idx = 0;
+    total_grounded_basal_ice_flux = tmp_global[tmp_local_idx]; tmp_local_idx++;
+    total_nonneg_rule_flux        = tmp_global[tmp_local_idx]; tmp_local_idx++;
+    total_sub_shelf_ice_flux      = tmp_global[tmp_local_idx]; tmp_local_idx++;
+    total_surface_ice_flux        = tmp_global[tmp_local_idx]; tmp_local_idx++;
+    total_sum_divQ_SIA            = tmp_global[tmp_local_idx]; tmp_local_idx++;
+    total_sum_divQ_SSA            = tmp_global[tmp_local_idx]; tmp_local_idx++;
+    total_Href_to_H_flux          = tmp_global[tmp_local_idx]; tmp_local_idx++;
+    total_H_to_Href_flux          = tmp_global[tmp_local_idx]; tmp_local_idx++;
+    total_land_flux               = tmp_global[tmp_local_idx]; tmp_local_idx++;
+    total_ocean_flux              = tmp_global[tmp_local_idx]; tmp_local_idx++;
+    //ccr-org // combine data to perform one reduction call instead of 8:
+    //ccr-org double tmp_local[8] = {proc_grounded_basal_ice_flux,
+    //ccr-org                        proc_nonneg_rule_flux,
+    //ccr-org                        proc_sub_shelf_ice_flux,
+    //ccr-org                        proc_surface_ice_flux,
+    //ccr-org                        proc_sum_divQ_SIA,
+    //ccr-org                        proc_sum_divQ_SSA,
+    //ccr-org                        proc_Href_to_H_flux,
+    //ccr-org                        proc_H_to_Href_flux};
+    //ccr-org double tmp_global[8];
+    //ccr-org GlobalSum(m_grid->com, tmp_local, tmp_global, 8);
+    //ccr-org 
+    //ccr-org total_grounded_basal_ice_flux = tmp_global[0];
+    //ccr-org total_nonneg_rule_flux        = tmp_global[1];
+    //ccr-org total_sub_shelf_ice_flux      = tmp_global[2];
+    //ccr-org total_surface_ice_flux        = tmp_global[3];
+    //ccr-org total_sum_divQ_SIA            = tmp_global[4];
+    //ccr-org total_sum_divQ_SSA            = tmp_global[5];
+    //ccr-org total_Href_to_H_flux          = tmp_global[6];
+    //ccr-org total_H_to_Href_flux          = tmp_global[7];
 
     grounded_basal_ice_flux_cumulative += total_grounded_basal_ice_flux;
     sub_shelf_ice_flux_cumulative      += total_sub_shelf_ice_flux;
@@ -806,6 +887,11 @@ void IceModel::massContExplicitStep() {
     nonneg_rule_flux_cumulative        += total_nonneg_rule_flux;
     Href_to_H_flux_cumulative          += total_Href_to_H_flux;
     H_to_Href_flux_cumulative          += total_H_to_Href_flux;
+
+    land_flux_cumulative               += total_land_flux; //ccr
+    ocean_flux_cumulative              += total_ocean_flux;//ccr
+    land_flux                           = total_land_flux; //ccr
+    ocean_flux                          = total_ocean_flux;//ccr
   }
 
   // finally copy vHnew into ice_thickness and communicate ghosted values

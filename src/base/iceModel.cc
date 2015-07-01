@@ -141,6 +141,9 @@ void IceModel::reset_counters() {
   Href_to_H_flux_cumulative          = 0;
   H_to_Href_flux_cumulative          = 0;
   discharge_flux_cumulative          = 0;
+
+  land_flux_cumulative               = 0; //ccr
+  ocean_flux_cumulative              = 0; //ccr
 }
 
 
@@ -592,6 +595,49 @@ void IceModel::createVecs() {
     discharge_flux_2D_cumulative.metadata().set_string("glaciological_units", "Gt m-2");
     discharge_flux_2D_cumulative.write_in_glaciological_units = true;
   }
+
+  //ccr -- begin
+  if (set_contains(extras, "land_flux")) {
+    land_flux_2D.create(m_grid, "land_flux_2D", WITHOUT_GHOSTS);
+    land_flux_2D.set_attrs("diagnostic",
+				      "flux due to land ice interaction",
+				      "kg m-2", "");
+    land_flux_2D.set_time_independent(false);
+    land_flux_2D.metadata().set_string("glaciological_units", "Gt m-2");
+    land_flux_2D.write_in_glaciological_units = true;
+  }
+
+
+  if (set_contains(extras, "land_flux_2D_cumulative")) {
+    land_flux_2D_cumulative.create(m_grid, "land_flux_2D_cumulative", WITHOUT_GHOSTS);
+    land_flux_2D_cumulative.set_attrs("diagnostic",
+				      "cumulative flux due to land ice interaction",
+				      "kg m-2", "");
+    land_flux_2D_cumulative.set_time_independent(false);
+    land_flux_2D_cumulative.metadata().set_string("glaciological_units", "Gt m-2");
+    land_flux_2D_cumulative.write_in_glaciological_units = true;
+  }
+
+  if (set_contains(extras, "ocean_flux")) {
+    ocean_flux_2D.create(m_grid, "ocean_flux_2D", WITHOUT_GHOSTS);
+    ocean_flux_2D.set_attrs("diagnostic",
+				      "flux due to ocean ice interaction",
+				      "kg m-2", "");
+    ocean_flux_2D.set_time_independent(false);
+    ocean_flux_2D.metadata().set_string("glaciological_units", "Gt m-2");
+    ocean_flux_2D.write_in_glaciological_units = true;
+  }
+
+  if (set_contains(extras, "ocean_flux_2D_cumulative")) {
+    ocean_flux_2D_cumulative.create(m_grid, "ocean_flux_2D_cumulative", WITHOUT_GHOSTS);
+    ocean_flux_2D_cumulative.set_attrs("diagnostic",
+				      "cumulative flux due to ocean ice interaction",
+				      "kg m-2", "");
+    ocean_flux_2D_cumulative.set_time_independent(false);
+    ocean_flux_2D_cumulative.metadata().set_string("glaciological_units", "Gt m-2");
+    ocean_flux_2D_cumulative.write_in_glaciological_units = true;
+  }
+  //ccr -- end
 }
 
 //! The contents of the main PISM time-step.

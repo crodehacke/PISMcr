@@ -89,7 +89,7 @@ void OceanKill::init() {
 
     int M = gc.mask(bed(i, j), thickness(i, j));
 
-    //ccr if (thickness(i, j) > 0 or mask::grounded(M)) {
+    //ccr-org if (thickness(i, j) > 0 or mask::grounded(M)) {
     if (thickness(i, j) > 0 or mask::grounded(M) or mask::lake(M)) {
       m_ocean_kill_mask(i, j) = 0;
     } else {

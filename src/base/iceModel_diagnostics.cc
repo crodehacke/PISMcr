@@ -82,6 +82,27 @@ void IceModel::init_diagnostics() {
     diagnostics["discharge_flux_cumulative"] = new IceModel_discharge_flux_2D_cumulative(this);
   }
 
+  //ccr -- begin
+  //ccr - land
+  if (land_flux_2D.was_created()) {
+    diagnostics["land_flux_2D"] = new IceModel_land_flux_2D(this);
+  }
+
+  if (land_flux_2D_cumulative.was_created()) {
+    diagnostics["land_flux_2D_cumulative"] = new IceModel_land_flux_2D_cumulative(this);
+  }
+
+  //ccr - ocean
+  if (ocean_flux_2D.was_created()) {
+    diagnostics["ocean_flux_2D"] = new IceModel_ocean_flux_2D(this);
+  }
+
+  if (ocean_flux_2D_cumulative.was_created()) {
+    diagnostics["ocean_flux_2D_cumulative"] = new IceModel_ocean_flux_2D_cumulative(this);
+  }
+  //ccr -- end
+
+
 #if (PISM_USE_PROJ4==1)
   if (global_attributes.has_attribute("proj4")) {
     std::string proj4 = global_attributes.get_string("proj4");
@@ -126,6 +147,13 @@ void IceModel::init_diagnostics() {
   ts_diagnostics["H_to_Href_flux"] = new IceModel_H_to_Href_flux(this);
   ts_diagnostics["Href_to_H_flux"] = new IceModel_Href_to_H_flux(this);
   ts_diagnostics["sum_divQ_flux"]  = new IceModel_sum_divQ_flux(this);
+
+  //ccr -- begin
+  ts_diagnostics["land_flux"]  = new IceModel_land_flux(this);
+  ts_diagnostics["land_flux_cumulative"]  = new IceModel_land_flux_cumulative(this);
+  ts_diagnostics["ocean_flux"] = new IceModel_ocean_flux(this);
+  ts_diagnostics["ocean_flux_cumulative"] = new IceModel_ocean_flux_cumulative(this);
+  //ccr -- end
 
   // Get diagnostics supported by the stress balance object:
   if (stress_balance != NULL) {
@@ -1538,6 +1566,85 @@ void IceModel_discharge_flux_cumulative::update(double a, double b) {
   m_ts->append(value, a, b);
 }
 
+  /////////////////////////
+  //ccr -- begin
+IceModel_land_flux::IceModel_land_flux(IceModel *m)
+  : TSDiag<IceModel>(m) {
+
+  // set metadata:
+  m_ts = new DiagnosticTimeseries(*m_grid, "land_flux", m_time_dimension_name);
+
+  m_ts->metadata().set_string("units", "kg s-1");
+  m_ts->dimension_metadata().set_string("units", m_time_units);
+  m_ts->metadata().set_string("long_name", "land flux");
+  m_ts->metadata().set_string("comment", "positive means ice gain");
+  m_ts->rate_of_change = true;
+}
+
+void IceModel_land_flux::update(double a, double b) {
+  double value = model->land_flux_cumulative;
+
+  m_ts->append(value, a, b);
+}
+
+  /////
+IceModel_land_flux_cumulative::IceModel_land_flux_cumulative(IceModel *m)
+  : TSDiag<IceModel>(m) {
+
+  // set metadata:
+  m_ts = new DiagnosticTimeseries(*m_grid, "land_flux_cumulative", m_time_dimension_name);
+
+  m_ts->metadata().set_string("units", "kg");
+  m_ts->dimension_metadata().set_string("units", m_time_units);
+  m_ts->metadata().set_string("long_name", "cumulative land flux");
+  m_ts->metadata().set_string("comment", "positive means ice gain");
+}
+
+void IceModel_land_flux_cumulative::update(double a, double b) {
+  double value = model->land_flux_cumulative;
+
+  m_ts->append(value, a, b);
+}
+
+IceModel_ocean_flux::IceModel_ocean_flux(IceModel *m)
+  : TSDiag<IceModel>(m) {
+
+  // set metadata:
+  m_ts = new DiagnosticTimeseries(*m_grid, "ocean_flux", m_time_dimension_name);
+
+  m_ts->metadata().set_string("units", "kg s-1");
+  m_ts->dimension_metadata().set_string("units", m_time_units);
+  m_ts->metadata().set_string("long_name", "ocean flux");
+  m_ts->metadata().set_string("comment", "positive means ice gain");
+  m_ts->rate_of_change = true;
+}
+
+void IceModel_ocean_flux::update(double a, double b) {
+  double value = model->ocean_flux_cumulative;
+
+  m_ts->append(value, a, b);
+}
+
+IceModel_ocean_flux_cumulative::IceModel_ocean_flux_cumulative(IceModel *m)
+  : TSDiag<IceModel>(m) {
+
+  // set metadata:
+  m_ts = new DiagnosticTimeseries(*m_grid, "ocean_flux_cumulative", m_time_dimension_name);
+
+  m_ts->metadata().set_string("units", "kg");
+  m_ts->dimension_metadata().set_string("units", m_time_units);
+  m_ts->metadata().set_string("long_name", "cumulative ocean flux");
+  m_ts->metadata().set_string("comment", "positive means ice gain");
+}
+
+void IceModel_ocean_flux_cumulative::update(double a, double b) {
+  double value = model->ocean_flux_cumulative;
+
+  m_ts->append(value, a, b);
+}
+
+  //ccr -- end
+
 IceModel_dHdt::IceModel_dHdt(IceModel *m)
   : Diag<IceModel>(m) {
 
@@ -1861,6 +1968,109 @@ IceModelVec::Ptr IceModel_discharge_flux_2D_cumulative::compute() {
 
   return result;
 }
+
+  // ccr -- begin
+IceModel_land_flux_2D::IceModel_land_flux_2D(IceModel *m)
+  : Diag<IceModel>(m) {
+
+  // set metadata:
+  m_vars.push_back(SpatialVariableMetadata(m_sys,
+                                     "land_flux_2D"));
+
+  set_attrs("ice land flux",
+            "",                 // no standard name
+            "kg m-2", "Gt m-2", 0);
+  m_vars[0].set_string("comment", "positive means ice gain");
+}
+
+IceModelVec::Ptr IceModel_land_flux_2D::compute() {
+
+  IceModelVec2S::Ptr result(new IceModelVec2S);
+  result->create(m_grid, "land_flux_2D", WITHOUT_GHOSTS);
+  result->metadata() = m_vars[0];
+  result->write_in_glaciological_units = true;
+
+  result->copy_from(model->land_flux_2D);
+
+  return result;
+}
+
+IceModel_land_flux_2D_cumulative::IceModel_land_flux_2D_cumulative(IceModel *m)
+  : Diag<IceModel>(m) {
+
+  // set metadata:
+  m_vars.push_back(SpatialVariableMetadata(m_sys,
+                                     "land_flux_2D_cumulative"));
+
+  set_attrs("cumulative ice land flux",
+            "",                 // no standard name
+            "kg m-2", "Gt m-2", 0);
+  m_vars[0].set_string("comment", "positive means ice gain");
+}
+
+IceModelVec::Ptr IceModel_land_flux_2D_cumulative::compute() {
+
+  IceModelVec2S::Ptr result(new IceModelVec2S);
+  result->create(m_grid, "land_flux_2D_cumulative", WITHOUT_GHOSTS);
+  result->metadata() = m_vars[0];
+  result->write_in_glaciological_units = true;
+
+  result->copy_from(model->land_flux_2D_cumulative);
+
+  return result;
+}
+  /////////////////
+IceModel_ocean_flux_2D::IceModel_ocean_flux_2D(IceModel *m)
+  : Diag<IceModel>(m) {
+
+  // set metadata:
+  m_vars.push_back(SpatialVariableMetadata(m_sys,
+                                     "ocean_flux_2D"));
+
+  set_attrs("ice ocean flux",
+            "",                 // no standard name
+            "kg m-2", "Gt m-2", 0);
+  m_vars[0].set_string("comment", "positive means ice gain");
+}
+
+IceModelVec::Ptr IceModel_ocean_flux_2D::compute() {
+
+  IceModelVec2S::Ptr result(new IceModelVec2S);
+  result->create(m_grid, "ocean_flux_2D", WITHOUT_GHOSTS);
+  result->metadata() = m_vars[0];
+  result->write_in_glaciological_units = true;
+
+  result->copy_from(model->ocean_flux_2D);
+
+  return result;
+}
+
+IceModel_ocean_flux_2D_cumulative::IceModel_ocean_flux_2D_cumulative(IceModel *m)
+  : Diag<IceModel>(m) {
+
+  // set metadata:
+  m_vars.push_back(SpatialVariableMetadata(m_sys,
+                                     "ocean_flux_2D_cumulative"));
+
+  set_attrs("cumulative ice ocean flux",
+            "",                 // no standard name
+            "kg m-2", "Gt m-2", 0);
+  m_vars[0].set_string("comment", "positive means ice gain");
+}
+
+IceModelVec::Ptr IceModel_ocean_flux_2D_cumulative::compute() {
+
+  IceModelVec2S::Ptr result(new IceModelVec2S);
+  result->create(m_grid, "ocean_flux_2D_cumulative", WITHOUT_GHOSTS);
+  result->metadata() = m_vars[0];
+  result->write_in_glaciological_units = true;
+
+  result->copy_from(model->ocean_flux_2D_cumulative);
+
+  return result;
+}
+
+  // ccr -- end
 
 #if (PISM_USE_PROJ4==1)
 IceModel_lat_lon_bounds::IceModel_lat_lon_bounds(IceModel *m,

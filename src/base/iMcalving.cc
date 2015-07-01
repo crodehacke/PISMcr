@@ -38,11 +38,13 @@ namespace pism {
 
 void IceModel::do_calving() {
   bool compute_cumulative_discharge = discharge_flux_2D_cumulative.was_created();
+  bool compute_cumulative_ocean_flux = ocean_flux_2D_cumulative.was_created(); //ccr
   IceModelVec2S
     &old_H    = vWork2d[0],
     &old_Href = vWork2d[1];
 
-  if (compute_cumulative_discharge) {
+  //ccr-org if (compute_cumulative_discharge) {
+  if (compute_cumulative_discharge || compute_cumulative_ocean_flux) {
     old_H.copy_from(ice_thickness);
     if (vHref.was_created()) {
       old_Href.copy_from(vHref);
@@ -74,6 +76,7 @@ void IceModel::do_calving() {
   Href_cleanup();
 
   update_cumulative_discharge(ice_thickness, old_H, vHref, old_Href);
+  //ccr ?? ocean ?? update_cumulative_discharge(ice_thickness, old_H, vHref, old_Href);
 }
 
 /**
@@ -133,6 +136,11 @@ void IceModel::update_cumulative_discharge(const IceModelVec2S &thickness,
     use_Href = Href.was_created() && Href_old.was_created();
   double my_total_discharge = 0.0, total_discharge;
 
+  //const bool update_ocean_flux = ocean_flux_cumulative.was_created(); //ccr
+  //const bool update_ocean_flux = true; // as a fallback solution
+  const bool update_ocean_flux = ocean_flux_2D.was_created(); //ccr
+  const bool update_2d_ocean_flux = ocean_flux_2D_cumulative.was_created(); //ccr
+
   IceModelVec::AccessList list;
   list.add(thickness);
   list.add(thickness_old);
@@ -176,6 +184,15 @@ void IceModel::update_cumulative_discharge(const IceModelVec2S &thickness,
         discharge_flux_2D_cumulative(i,j) += discharge;
       }
 
+      //ccr -- begin
+      if (update_ocean_flux) {
+	ocean_flux_2D(i,j) = discharge; //ccr : Evtl += discharge, if iceModel_diagnostic is computed first
+      }
+      if (update_2d_ocean_flux) {
+	ocean_flux_2D_cumulative(i,j) += discharge;
+      }
+      //ccr -- end
+
       my_total_discharge += discharge;
     }
   }
@@ -183,6 +200,12 @@ void IceModel::update_cumulative_discharge(const IceModelVec2S &thickness,
   total_discharge = GlobalSum(m_grid->com, my_total_discharge);
 
   this->discharge_flux_cumulative += total_discharge;
+
+  //ccr -- begin
+  this->ocean_flux             = total_discharge;
+  this->ocean_flux_cumulative += total_discharge;
+  //ccr -- end
+
 }
 
 } // end of namespace pism

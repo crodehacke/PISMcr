@@ -141,6 +141,16 @@ class IceModel {
   friend class IceModel_sum_divQ_flux;
   friend class IceModel_H_to_Href_flux;
   friend class IceModel_Href_to_H_flux;
+  //ccr -- begin
+  friend class IceModel_land_flux;                //ccr ??
+  friend class IceModel_land_flux_2D;             //ccr
+  friend class IceModel_land_flux_2D_cumulative;  //ccr
+  friend class IceModel_land_flux_cumulative;     //ccr
+  friend class IceModel_ocean_flux;	          //ccr ??
+  friend class IceModel_ocean_flux_2D;	          //ccr
+  friend class IceModel_ocean_flux_2D_cumulative; //ccr
+  friend class IceModel_ocean_flux_cumulative;    //ccr
+  //ccr -- end
 public:
   // see iceModel.cc for implementation of constructor and destructor:
   IceModel(IceGrid::Ptr g, Context::Ptr context);
@@ -275,6 +285,12 @@ protected:
     cell_area,          //!< cell areas (computed using the WGS84 datum)
     flux_divergence;    //!< flux divergence
 
+  IceModelVec2S //ccr
+    land_flux_2D,             //!< flux on land (incl. lakes)
+    ocean_flux_2D,            //!< flux on ocean (excl. lakes)
+    land_flux_2D_cumulative,  //!< cumulative flux on land (incl. lakes)
+    ocean_flux_2D_cumulative; //!< cumulative flux on the ocean (excl. lakes)
+
 public:
   IceModelVec2S* get_geothermal_flux();
   void setCTSFromEnthalpy(IceModelVec3 &result);
@@ -315,6 +331,11 @@ protected:
     Href_to_H_flux_cumulative,
     H_to_Href_flux_cumulative,
     discharge_flux_cumulative;      //!< cumulative discharge (calving) flux
+
+  double land_flux,            //!< land flux
+    land_flux_cumulative,      //!< cumulative land flux
+    ocean_flux,                //!< ocean flux
+    ocean_flux_cumulative;     //!< cumulative ocean flux
 
   unsigned int skipCountDown,
     CFLviolcount;
