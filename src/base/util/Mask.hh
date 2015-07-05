@@ -31,7 +31,7 @@ enum MaskValue {
   MASK_GROUNDED         = 2,
   MASK_FLOATING         = 3,
   MASK_ICE_FREE_OCEAN   = 4,
-  MASK_ICE_LAKE         = 5  //ccr
+  MASK_ICE_LAKE         = 5
 };
 
 namespace mask {
