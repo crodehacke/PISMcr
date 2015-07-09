@@ -38,13 +38,16 @@ namespace pism {
 
 void IceModel::do_calving() {
   bool compute_cumulative_discharge = discharge_flux_2D_cumulative.was_created();
-  bool compute_cumulative_ocean_flux = ocean_flux_2D_cumulative.was_created(); //ccr
+  bool compute_ocean_flux_2D = ocean_flux_2D.was_created();
+  bool compute_cumulative_ocean_flux_2D = ocean_flux_2D_cumulative.was_created();
+
+
   IceModelVec2S
     &old_H    = vWork2d[0],
     &old_Href = vWork2d[1];
 
   //ccr-org if (compute_cumulative_discharge) {
-  if (compute_cumulative_discharge || compute_cumulative_ocean_flux) {
+  if (compute_cumulative_discharge || compute_ocean_flux_2D || compute_cumulative_ocean_flux_2D) {
     old_H.copy_from(ice_thickness);
     if (vHref.was_created()) {
       old_Href.copy_from(vHref);
@@ -136,10 +139,9 @@ void IceModel::update_cumulative_discharge(const IceModelVec2S &thickness,
     use_Href = Href.was_created() && Href_old.was_created();
   double my_total_discharge = 0.0, total_discharge;
 
-  //const bool update_ocean_flux = ocean_flux_cumulative.was_created(); //ccr
-  //const bool update_ocean_flux = true; // as a fallback solution
-  const bool update_ocean_flux = ocean_flux_2D.was_created(); //ccr
-  const bool update_2d_ocean_flux = ocean_flux_2D_cumulative.was_created(); //ccr
+  const bool update_ocean_flux_2D = ocean_flux_2D.was_created(),
+    update_cumulative_ocean_flux_2D = ocean_flux_2D_cumulative.was_created();
+
 
   IceModelVec::AccessList list;
   list.add(thickness);
@@ -150,6 +152,15 @@ void IceModel::update_cumulative_discharge(const IceModelVec2S &thickness,
   if (update_2d_discharge) {
     list.add(discharge_flux_2D_cumulative);
   }
+
+  //ccr -- begin
+  if (update_ocean_flux_2D) {
+    list.add(ocean_flux_2D);
+  }
+  if (update_cumulative_ocean_flux_2D) {
+    list.add(ocean_flux_2D_cumulative);
+  }
+  //ccr -- end
 
   if (use_Href) {
     list.add(Href);
@@ -185,10 +196,10 @@ void IceModel::update_cumulative_discharge(const IceModelVec2S &thickness,
       }
 
       //ccr -- begin
-      if (update_ocean_flux) {
-	ocean_flux_2D(i,j) = discharge; //ccr : Evtl += discharge, if iceModel_diagnostic is computed first
+      if (update_ocean_flux_2D) {
+	ocean_flux_2D(i,j) += discharge; //Before in massContExplicitStep(), the contribution of =basal_melting
       }
-      if (update_2d_ocean_flux) {
+      if (update_cumulative_ocean_flux_2D) {
 	ocean_flux_2D_cumulative(i,j) += discharge;
       }
       //ccr -- end
@@ -202,10 +213,9 @@ void IceModel::update_cumulative_discharge(const IceModelVec2S &thickness,
   this->discharge_flux_cumulative += total_discharge;
 
   //ccr -- begin
-  this->ocean_flux             = total_discharge;
+  this->ocean_flux            += total_discharge; //Before in massContExplicitStep(), basal_melting contribution
   this->ocean_flux_cumulative += total_discharge;
   //ccr -- end
-
 }
 
 } // end of namespace pism

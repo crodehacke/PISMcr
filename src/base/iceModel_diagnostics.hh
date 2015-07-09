@@ -452,8 +452,7 @@ public:
 
 //////////////////////
 //ccr --- begin
-//! \brief Reports the land interaction flux.
-
+//! \brief Reports the integrated land interaction flux.
 class IceModel_land_flux : public TSDiag<IceModel>
 {
 public:
@@ -461,7 +460,7 @@ public:
   virtual void update(double a, double b);
 };
 
-//! \brief Reports the cumulative land interaction flux.
+//! \brief Reports the integrated cumulative land interaction flux.
 class IceModel_land_flux_cumulative : public TSDiag<IceModel>
 {
 public:
@@ -469,7 +468,7 @@ public:
   virtual void update(double a, double b);
 };
 
-//! \brief Reports the ocean interaction flux.
+//! \brief Reports the integrated ocean interaction flux.
 class IceModel_ocean_flux : public TSDiag<IceModel>
 {
 public:
@@ -477,14 +476,14 @@ public:
   virtual void update(double a, double b);
 };
 
-//! \brief Reports the cumulative ocean interaction flux.
+//! \brief Reports the integrated cumulative ocean interaction flux.
 class IceModel_ocean_flux_cumulative : public TSDiag<IceModel>
 {
 public:
   IceModel_ocean_flux_cumulative(IceModel *m);
   virtual void update(double a, double b);
 };
-////ccr ---
+//ccr --- begin
 
 //! \brief Reports the crevasses calving flux -crevasses_calving
 //class IceModel_crevasses_calv_flux : public Diag<IceModel>
@@ -528,27 +527,20 @@ public:
 //};
 //
 ////ccr ---
-//! \brief Reports the 2D cumulative land flux.
-class IceModel_land_flux_2D_cumulative : public Diag<IceModel>
-{
-public:
-  IceModel_land_flux_2D_cumulative(IceModel *m);
-  virtual IceModelVec::Ptr compute();
-};
 
 //! \brief Reports the 2D land flux.
 class IceModel_land_flux_2D : public Diag<IceModel>
 {
 public:
-  IceModel_land_flux_2D(IceModel *m);
+   IceModel_land_flux_2D(IceModel *m);
   virtual IceModelVec::Ptr compute();
 };
 
-//! \brief Reports the 2D cumulative ocean flux.
-class IceModel_ocean_flux_2D_cumulative : public Diag<IceModel>
+//! \brief Reports the 2D cumulative land flux.
+class IceModel_land_flux_2D_cumulative : public Diag<IceModel>
 {
 public:
-  IceModel_ocean_flux_2D_cumulative(IceModel *m);
+  IceModel_land_flux_2D_cumulative(IceModel *m);
   virtual IceModelVec::Ptr compute();
 };
 
@@ -560,8 +552,14 @@ public:
   virtual IceModelVec::Ptr compute();
 };
 
+//! \brief Reports the 2D cumulative ocean flux.
+class IceModel_ocean_flux_2D_cumulative : public Diag<IceModel>
+{
+public:
+  IceModel_ocean_flux_2D_cumulative(IceModel *m);
+  virtual IceModelVec::Ptr compute();
+};
 //ccr --- end
-/////////////////////
 
 } // end of namespace pism
 

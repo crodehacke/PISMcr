@@ -142,14 +142,14 @@ class IceModel {
   friend class IceModel_H_to_Href_flux;
   friend class IceModel_Href_to_H_flux;
   //ccr -- begin
-  friend class IceModel_land_flux;                //ccr ??
-  friend class IceModel_land_flux_2D;             //ccr
-  friend class IceModel_land_flux_2D_cumulative;  //ccr
-  friend class IceModel_land_flux_cumulative;     //ccr
-  friend class IceModel_ocean_flux;	          //ccr ??
-  friend class IceModel_ocean_flux_2D;	          //ccr
-  friend class IceModel_ocean_flux_2D_cumulative; //ccr
-  friend class IceModel_ocean_flux_cumulative;    //ccr
+  friend class IceModel_land_flux;                //ccr 1D, snapshot
+  friend class IceModel_land_flux_cumulative;     //ccr 1D, cumulative
+  friend class IceModel_land_flux_2D;             //ccr 2D, snapshot
+  friend class IceModel_land_flux_2D_cumulative;  //ccr 2D, cumulative
+  friend class IceModel_ocean_flux;	          //ccr 1D, snapshot
+  friend class IceModel_ocean_flux_cumulative;    //ccr 1D, cumulative
+  friend class IceModel_ocean_flux_2D;	          //ccr 2D, snapshot
+  friend class IceModel_ocean_flux_2D_cumulative; //ccr 2D, cumulative
   //ccr -- end
 public:
   // see iceModel.cc for implementation of constructor and destructor:

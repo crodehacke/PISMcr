@@ -533,8 +533,10 @@ void IceModel::massContExplicitStep() {
     compute_cumulative_floating_basal_flux = floating_basal_flux_2D_cumulative.was_created(),
     compute_flux_divergence = flux_divergence.was_created();
   bool //ccr
-    compute_cumulative_land_flux  = land_flux_2D_cumulative.was_created(),
-    compute_cumulative_ocean_flux = ocean_flux_2D_cumulative.was_created();
+    compute_land_flux_2D = land_flux_2D.was_created(),
+    compute_cumulative_land_flux_2D = land_flux_2D_cumulative.was_created(),
+    compute_ocean_flux_2D = ocean_flux_2D.was_created(),
+    compute_cumulative_ocean_flux_2D = ocean_flux_2D_cumulative.was_created();
 
   double ice_density = m_config->get_double("ice_density"),
     meter_per_s_to_kg_per_m2 = dt * ice_density;
@@ -605,11 +607,23 @@ void IceModel::massContExplicitStep() {
   }
 
   //ccr -- begin
-  if (compute_cumulative_land_flux) {
+   ////Put the following lines upwards
+   //#include <iostream>
+   //using namespace std ;
+   //
+   //  cout << "Flags L" << compute_land_flux_2D << " cL" <<compute_cumulative_land_flux_2D 
+   //       << " O" << compute_ocean_flux_2D << " cO" <<compute_cumulative_ocean_flux_2D << "\n";
+  if (compute_land_flux_2D) {
+    list.add(land_flux_2D);
+  }
+  if (compute_cumulative_land_flux_2D) {
     list.add(land_flux_2D_cumulative);
   }
 
-  if (compute_cumulative_ocean_flux) {
+  if (compute_ocean_flux_2D) {
+    list.add(ocean_flux_2D);
+  }
+  if (compute_cumulative_ocean_flux_2D) {
     list.add(ocean_flux_2D_cumulative);
   }
   //ccr -- end
@@ -641,9 +655,7 @@ void IceModel::massContExplicitStep() {
         H_to_Href_flux       = 0.0, // units: [m]
         Href_to_H_flux       = 0.0, // units: [m]
         nonneg_rule_flux     = 0.0; // units: [m]
-      double //ccr ???
-	land_flux            = 0.0, // units: []
-	ocean_flux           = 0.0; // units: []
+      double tmp_flux;
 
       if (include_bmr_in_continuity) {
         my_basal_melt_rate = basal_melt_rate(i, j);
@@ -778,19 +790,31 @@ void IceModel::massContExplicitStep() {
 
 
       //ccr -- begin
-      if (compute_cumulative_land_flux && (mask.grounded(i, j) || mask.lake(i, j))) {
+      if ( (compute_land_flux_2D || compute_cumulative_land_flux_2D)
+	   && (mask.grounded(i, j) || mask.lake(i, j))) {
         // my_basal_melt_rate has the units of [m s-1]; convert to [kg m-2]
-        land_flux_2D(i, j)  = (surface_mass_balance-my_basal_melt_rate) * meter_per_s_to_kg_per_m2;
-	land_flux_2D_cumulative(i, j) += land_flux_2D(i, j);
-        //ccr-old land_flux_2D_cumulative(i, j) += (surface_mass_balance-my_basal_melt_rate) * meter_per_s_to_kg_per_m2;
+	tmp_flux = (surface_mass_balance-my_basal_melt_rate) * meter_per_s_to_kg_per_m2;
+	if ( compute_land_flux_2D ) { 
+	  land_flux_2D(i, j) = tmp_flux;
+	}
+	if ( compute_cumulative_land_flux_2D ) { 
+	  land_flux_2D_cumulative(i, j) += tmp_flux;
+	}
       }
 
-      if (compute_cumulative_ocean_flux && (mask.ocean(i, j) && not mask.lake(i, j))) {
+      if ( (compute_ocean_flux_2D || compute_cumulative_ocean_flux_2D)
+	   && (mask.ocean(i, j) && not mask.lake(i, j))) {
         // my_basal_melt_rate has the units of [m s-1]; convert to [kg m-2]
-	ocean_flux_2D(i, j) = (surface_mass_balance-my_basal_melt_rate) * meter_per_s_to_kg_per_m2; // !! FIXME here += if calving is computered earlier
-	ocean_flux_2D_cumulative(i, j) += ocean_flux_2D(i, j);
-        //ccr-old ocean_flux_2D_cumulative(i, j) += (surface_mass_balance-my_basal_melt_rate) * meter_per_s_to_kg_per_m2;
-	//FIXME: ANY CALVING is MISSING
+	tmp_flux =  (surface_mass_balance-my_basal_melt_rate) * meter_per_s_to_kg_per_m2;
+	// !! FIXME here += if calving is computered earlier
+	if ( compute_ocean_flux_2D ) {
+	  ocean_flux_2D(i, j) = tmp_flux;
+	  //Later during do_calving(), the contribution of calving is added
+ 	}
+	if ( compute_cumulative_ocean_flux_2D ) {
+	  ocean_flux_2D_cumulative(i, j) += tmp_flux;
+	  //Later during do_calving(), the contribution of calving is added
+	}
       }
       //ccr -- end
 
@@ -810,10 +834,8 @@ void IceModel::massContExplicitStep() {
 	if (mask.ocean(i, j) && not mask.lake(i, j)) {
         // my_basal_melt_rate has the units of [m s-1]; convert to [kg m-2]
         proc_ocean_flux  += (surface_mass_balance-my_basal_melt_rate) * meter_per_s_to_kg_per_m2;
-	//FIXME: ANY CALVING is MISSING
 	}
 	//ccr -- end
-
 
         proc_surface_ice_flux        +=   surface_mass_balance * meter_per_s_to_kg;
         proc_sum_divQ_SIA            += - divQ_SIA             * meter_per_s_to_kg;
@@ -888,10 +910,10 @@ void IceModel::massContExplicitStep() {
     Href_to_H_flux_cumulative          += total_Href_to_H_flux;
     H_to_Href_flux_cumulative          += total_H_to_Href_flux;
 
-    land_flux_cumulative               += total_land_flux; //ccr
-    ocean_flux_cumulative              += total_ocean_flux;//ccr
-    land_flux                           = total_land_flux; //ccr
-    ocean_flux                          = total_ocean_flux;//ccr
+    land_flux_cumulative               += total_land_flux;
+    ocean_flux_cumulative              += total_ocean_flux; //Later in do_calving(), the contribution of calving
+    land_flux                           = total_land_flux;
+    ocean_flux                          = total_ocean_flux; //Later in do_calving(), the contribution of calving
   }
 
   // finally copy vHnew into ice_thickness and communicate ghosted values

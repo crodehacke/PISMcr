@@ -83,7 +83,6 @@ void IceModel::init_diagnostics() {
   }
 
   //ccr -- begin
-  //ccr - land
   if (land_flux_2D.was_created()) {
     diagnostics["land_flux_2D"] = new IceModel_land_flux_2D(this);
   }
@@ -92,7 +91,6 @@ void IceModel::init_diagnostics() {
     diagnostics["land_flux_2D_cumulative"] = new IceModel_land_flux_2D_cumulative(this);
   }
 
-  //ccr - ocean
   if (ocean_flux_2D.was_created()) {
     diagnostics["ocean_flux_2D"] = new IceModel_ocean_flux_2D(this);
   }
@@ -2019,7 +2017,7 @@ IceModelVec::Ptr IceModel_land_flux_2D_cumulative::compute() {
 
   return result;
 }
-  /////////////////
+
 IceModel_ocean_flux_2D::IceModel_ocean_flux_2D(IceModel *m)
   : Diag<IceModel>(m) {
 
@@ -2069,7 +2067,6 @@ IceModelVec::Ptr IceModel_ocean_flux_2D_cumulative::compute() {
 
   return result;
 }
-
   // ccr -- end
 
 #if (PISM_USE_PROJ4==1)

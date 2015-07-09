@@ -142,8 +142,8 @@ void IceModel::reset_counters() {
   H_to_Href_flux_cumulative          = 0;
   discharge_flux_cumulative          = 0;
 
-  land_flux_cumulative               = 0; //ccr
-  ocean_flux_cumulative              = 0; //ccr
+  land_flux_cumulative               = 0;
+  ocean_flux_cumulative              = 0;
 }
 
 
@@ -597,7 +597,7 @@ void IceModel::createVecs() {
   }
 
   //ccr -- begin
-  if (set_contains(extras, "land_flux")) {
+  if ( set_contains(extras, "land_flux_2D")) {
     land_flux_2D.create(m_grid, "land_flux_2D", WITHOUT_GHOSTS);
     land_flux_2D.set_attrs("diagnostic",
 				      "flux due to land ice interaction",
@@ -606,7 +606,6 @@ void IceModel::createVecs() {
     land_flux_2D.metadata().set_string("glaciological_units", "Gt m-2");
     land_flux_2D.write_in_glaciological_units = true;
   }
-
 
   if (set_contains(extras, "land_flux_2D_cumulative")) {
     land_flux_2D_cumulative.create(m_grid, "land_flux_2D_cumulative", WITHOUT_GHOSTS);
@@ -618,7 +617,7 @@ void IceModel::createVecs() {
     land_flux_2D_cumulative.write_in_glaciological_units = true;
   }
 
-  if (set_contains(extras, "ocean_flux")) {
+  if (set_contains(extras, "ocean_flux_2D")) {
     ocean_flux_2D.create(m_grid, "ocean_flux_2D", WITHOUT_GHOSTS);
     ocean_flux_2D.set_attrs("diagnostic",
 				      "flux due to ocean ice interaction",
@@ -776,7 +775,7 @@ void IceModel::step(bool do_mass_continuity,
   //!  model; see massContExplicitStep()
   if (do_mass_continuity) {
     profiling.begin("mass transport");
-    massContExplicitStep();
+    massContExplicitStep();          //ccr -- iMgeometry: fluxes=ocean,land
     updateSurfaceElevationAndMask(); // update h and mask
     profiling.end("mass transport");
 
@@ -801,7 +800,7 @@ void IceModel::step(bool do_mass_continuity,
   }
 
   profiling.begin("calving");
-  do_calving();
+  do_calving();                      //ccr -- iMcalving: fluxes=ocean extended by calving
   profiling.end("calving");
 
   Href_cleanup();
