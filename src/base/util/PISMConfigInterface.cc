@@ -545,6 +545,11 @@ void set_config_from_options(Config &config) {
   }
 
   // all calving mechanisms require iceberg removal
+  if (config.get_string("calving_methods").find("crevasses_calving") != std::string::npos) {
+    config.set_boolean("do_crevasses_calving", true, Config::USER);
+  }
+
+  // all calving mechanisms require iceberg removal
   if (config.get_string("calving_methods").empty() == false) {
     config.set_boolean("kill_icebergs", true, Config::USER);
   }
@@ -575,6 +580,7 @@ void set_config_from_options(Config &config) {
   options::deprecated("-eigen_calving", "-calving eigen_calving -eigen_calving_K XXX");
   options::deprecated("-calving_at_thickness",
                       "-calving thickness_calving -thickness_calving_threshold XXX");
+  options::deprecated("-crevasses_calving", "-calving crevasses_calving -ZZZ XXX");
   options::deprecated("-float_kill", "-calving float_kill");
   options::deprecated("-no_energy", "-energy none");
   options::deprecated("-cold", "-energy cold");

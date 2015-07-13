@@ -67,6 +67,7 @@ class Hydrology;
 
 namespace calving {
 class EigenCalving;
+class CrevassesCalving;
 class OceanKill;
 class FloatKill;
 class CalvingAtThickness;
@@ -150,6 +151,12 @@ class IceModel {
   friend class IceModel_ocean_flux_cumulative;    //ccr 1D, cumulative
   friend class IceModel_ocean_flux_2D;	          //ccr 2D, snapshot
   friend class IceModel_ocean_flux_2D_cumulative; //ccr 2D, cumulative
+  //ccr -- crevasses calving
+  friend class IceModel_crevasses_calv_flux;
+  friend class IceModel_crevasses_calv_flux_cumulative;
+  friend class IceModel_crevasses_calv_flux_2D;
+  friend class IceModel_crevasses_calv_flux_2D_cumulative;
+  friend class IceModel_crevasses_dw;
   //ccr -- end
 public:
   // see iceModel.cc for implementation of constructor and destructor:
@@ -250,6 +257,7 @@ protected:
   calving::FloatKill          *float_kill_calving;
   calving::CalvingAtThickness *thickness_threshold_calving;
   calving::EigenCalving       *eigen_calving;
+  calving::CrevassesCalving   *crevasses_calving;
 
   surface::SurfaceModel *surface;
   ocean::OceanModel   *ocean;
@@ -291,8 +299,16 @@ protected:
     land_flux_2D_cumulative,  //!< cumulative flux on land (incl. lakes)
     ocean_flux_2D_cumulative; //!< cumulative flux on the ocean (excl. lakes)
 
-public:
-  IceModelVec2S* get_geothermal_flux();
+  // some more diagnostics/internals
+  IceModelVec2S crevasses_calv_flux_2D,//!< crevasses calving
+    crevasses_calv_flux_2D_cumulative, //!< cumulative crevasses calving
+    vsurface_crevasses_h,  //!< surface crevasses depth
+    vbottom_crevasses_h,   //!< bottom crevasses depth
+    vcrevasses_dw;         //!< water table in crevasses
+
+
+
+public:  IceModelVec2S* get_geothermal_flux();
   void setCTSFromEnthalpy(IceModelVec3 &result);
 protected:
 
@@ -335,7 +351,9 @@ protected:
   double land_flux,            //!< land flux
     land_flux_cumulative,      //!< cumulative land flux
     ocean_flux,                //!< ocean flux
-    ocean_flux_cumulative;     //!< cumulative ocean flux
+    ocean_flux_cumulative,     //!< cumulative ocean flux
+    crevasses_calv_flux,       //!< crevasses calving
+    crevasses_calv_flux_cumulative; //!< cumulative crevasses calving
 
   unsigned int skipCountDown,
     CFLviolcount;

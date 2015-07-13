@@ -22,6 +22,7 @@
 
 #include "iceModel.hh"
 #include "base/calving/PISMEigenCalving.hh"
+#include "base/calving/PISMCrevassesCalving.hh"
 #include "base/energy/bedrockThermalUnit.hh"
 #include "base/hydrology/PISMHydrology.hh"
 #include "base/stressbalance/PISMStressBalance.hh"
@@ -288,6 +289,13 @@ void IceModel::max_timestep(double &dt_result, unsigned int &skip_counter_result
       MaxTimestep eigencalving_dt = eigen_calving->max_timestep();
       if (eigencalving_dt.is_finite()) {
         dt_restrictions["eigencalving"] = eigencalving_dt.value();
+      }
+    }
+
+    if (crevasses_calving != NULL) {
+      MaxTimestep crevassescalving_dt = crevasses_calving->max_timestep();
+      if (crevassescalving_dt.is_finite()) {
+        dt_restrictions["crevassescalving"] = crevassescalving_dt.value();
       }
     }
 

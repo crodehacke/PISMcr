@@ -27,6 +27,7 @@
 #include "base/basalstrength/PISMYieldStress.hh"
 #include "base/calving/PISMCalvingAtThickness.hh"
 #include "base/calving/PISMEigenCalving.hh"
+#include "base/calving/PISMCrevassesCalving.hh"
 #include "base/calving/PISMFloatKill.hh"
 #include "base/calving/PISMOceanKill.hh"
 #include "base/energy/bedrockThermalUnit.hh"
@@ -212,6 +213,10 @@ void IceModel::write_variables(const PIO &nc, const std::set<std::string> &vars_
       eigen_calving->define_variables(vars, nc, nctype);
     }
 
+    if (crevasses_calving != NULL) {
+      crevasses_calving->define_variables(vars, nc, nctype);
+    }
+
   }
   // Write all the IceModel variables:
 
@@ -280,6 +285,10 @@ void IceModel::write_variables(const PIO &nc, const std::set<std::string> &vars_
 
   if (eigen_calving != NULL) {
     eigen_calving->write_variables(vars, nc);
+  }
+
+  if (crevasses_calving != NULL) {
+    crevasses_calving->write_variables(vars, nc);
   }
 
   // All the remaining names in vars must be of diagnostic quantities.

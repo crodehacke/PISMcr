@@ -155,6 +155,7 @@ add_library (pismbase
   base/calving/PISMFloatKill.cc
   base/calving/PISMOceanKill.cc
   base/calving/PISMEigenCalving.cc
+  base/calving/PISMCrevassesCalving.cc
 )
 target_link_libraries (pismbase pismearth pismboundary pismutil pismstressbalance pismrevision)
 

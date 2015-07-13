@@ -204,7 +204,8 @@ void IceModel::bootstrap_2d(const std::string &filename) {
     vHref.regrid(filename, OPTIONAL, 0.0);
   }
 
-  if (m_config->get_string("calving_methods").find("eigen_calving") != std::string::npos) {
+  if (m_config->get_string("calving_methods").find("eigen_calving") != std::string::npos ||
+      m_config->get_string("calving_methods").find("crevasses_calving") != std::string::npos) {
     strain_rates.set(0.0);
   }
 

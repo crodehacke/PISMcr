@@ -24,6 +24,7 @@
 #include "iceModel.hh"
 #include "base/calving/PISMCalvingAtThickness.hh"
 #include "base/calving/PISMEigenCalving.hh"
+#include "base/calving/PISMCrevassesCalving.hh"
 #include "base/calving/PISMFloatKill.hh"
 #include "base/calving/PISMIcebergRemover.hh"
 #include "base/calving/PISMOceanKill.hh"
@@ -33,6 +34,7 @@
 #include "base/util/PISMConfigInterface.hh"
 #include "base/util/pism_const.hh"
 #include "coupler/PISMOcean.hh"
+#include "earth/PISMBedDef.hh" //ccr
 
 namespace pism {
 
@@ -40,6 +42,7 @@ void IceModel::do_calving() {
   bool compute_cumulative_discharge = discharge_flux_2D_cumulative.was_created();
   bool compute_ocean_flux_2D = ocean_flux_2D.was_created();
   bool compute_cumulative_ocean_flux_2D = ocean_flux_2D_cumulative.was_created();
+  bool compute_cumulative_crevasses_calv_flux_2D= crevasses_calv_flux_2D_cumulative.was_created();
 
 
   IceModelVec2S
@@ -47,7 +50,9 @@ void IceModel::do_calving() {
     &old_Href = vWork2d[1];
 
   //ccr-org if (compute_cumulative_discharge) {
-  if (compute_cumulative_discharge || compute_ocean_flux_2D || compute_cumulative_ocean_flux_2D) {
+  if (compute_cumulative_discharge || compute_ocean_flux_2D || 
+      compute_cumulative_ocean_flux_2D || 
+      compute_cumulative_crevasses_calv_flux_2D ) {
     old_H.copy_from(ice_thickness);
     if (vHref.was_created()) {
       old_Href.copy_from(vHref);
@@ -59,6 +64,13 @@ void IceModel::do_calving() {
   // of a time-step.
   if (eigen_calving != NULL) {
     eigen_calving->update(dt, vMask, vHref, ice_thickness);
+  }
+
+  if (crevasses_calving != NULL) {
+    double sea_level = ocean->sea_level_elevation();
+    //const IceModelVec2S &bed_topography = beddef->bed_elevation();
+
+    crevasses_calving->update(dt, vMask, vHref, ice_thickness, sea_level, T3) ; //, bed, T3, zlevel);
   }
 
   if (ocean_kill_calving != NULL) {
@@ -79,7 +91,6 @@ void IceModel::do_calving() {
   Href_cleanup();
 
   update_cumulative_discharge(ice_thickness, old_H, vHref, old_Href);
-  //ccr ?? ocean ?? update_cumulative_discharge(ice_thickness, old_H, vHref, old_Href);
 }
 
 /**
@@ -141,7 +152,7 @@ void IceModel::update_cumulative_discharge(const IceModelVec2S &thickness,
 
   const bool update_ocean_flux_2D = ocean_flux_2D.was_created(),
     update_cumulative_ocean_flux_2D = ocean_flux_2D_cumulative.was_created();
-
+    //update_cumulative_crevasses_calv_flux_2D = crevasses_calv_flux_2D_cumulative.was_created(); //ccr fixme
 
   IceModelVec::AccessList list;
   list.add(thickness);
@@ -160,6 +171,12 @@ void IceModel::update_cumulative_discharge(const IceModelVec2S &thickness,
   if (update_cumulative_ocean_flux_2D) {
     list.add(ocean_flux_2D_cumulative);
   }
+  //ccr fixme
+// -> maybe we need to access also the current calving rate
+//  if (update_cumulative_crevasses_calv_flux_2D) {
+//    list.add(crevasses_calv_flux_2D_cumulative);
+//    list.add(crevasses_calv_CALVING_????);
+//  }
   //ccr -- end
 
   if (use_Href) {

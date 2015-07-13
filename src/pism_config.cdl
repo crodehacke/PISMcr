@@ -115,6 +115,19 @@ netcdf pism_config {
     pism_config:fracture_density_softening_lower_limit = 1.0;
     pism_config:fracture_density_softening_lower_limit_doc = "epsilon in equation (6) in Albrecht and Levermann, 'Fracture-induced softening for large-scale ice dynamics'";
 
+//ccr -- begin
+    pism_config:do_crevasses_calving_option = "crevasses_calving";
+    pism_config:do_crevasses_calving_type = "boolean";
+    pism_config:do_crevasses_calving = "false";
+    pism_config:do_crevasses_calving_doc = "from strain rates estimated crevasses driven calving rate";
+
+    pism_config:clf_crevasses_calving_option = "crevasses_calving";
+    pism_config:clf_crevasses_calving_type = "boolean";
+    pism_config:cfl_crevasses_calving = "false";
+    pism_config:cfl_crevasses_calving_doc = "apply CFL criterion for crevasses driven calving rate";
+//ccr -- end
+
+
     pism_config:write_fd_fields_type = "boolean";
     pism_config:write_fd_fields_option = "write_fd_fields";
     pism_config:write_fd_fields = "no";
@@ -576,8 +589,22 @@ netcdf pism_config {
     pism_config:eigen_calving_K_option = "eigen_calving_K";
     pism_config:eigen_calving_K_units = "meter second";
     pism_config:eigen_calving_K_type = "scalar";
-    pism_config:eigen_calving_K = 0.0;
+    pism_config:eigen_calving_K = 0.0; //8.0e17;
     pism_config:eigen_calving_K_doc = "Set proportionality constant to determine calving rate from strain rates.  Note references [@ref Levermannetal2012, @ref Martinetal2011] use K in range 10^9 to 3 x 10^11 m a, that is, 3 x 10^16 to 10^19 m s.";
+
+//ccr -- begin
+    pism_config:crevasses_calving_dw_option = "crevasses_calving";
+    pism_config:crevasses_calving_dw_units = "meter";
+    pism_config:crevasses_calving_dw_type = "scalar";
+    pism_config:crevasses_calving_dw = 50.0;
+    pism_config:crevasses_calving_dw_doc = "Set standard water depth in crevasses for crevasses driven calving rate";
+
+    pism_config:crevasses_calving_dw0_option = "crevasses_calving";
+    pism_config:crevasses_calving_dw0_units = "meter";
+    pism_config:crevasses_calving_dw0_type = "scalar";
+    pism_config:crevasses_calving_dw0 = 15.0;
+    pism_config:crevasses_calving_dw0_doc = "Set minimal water depth in crevasses for crevasses driven calving rate";
+//ccr -- end
 
     pism_config:thickness_calving_threshold_option = "thickness_calving_threshold";
     pism_config:thickness_calving_threshold_units = "meters";

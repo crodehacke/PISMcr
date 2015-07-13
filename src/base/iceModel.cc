@@ -28,6 +28,7 @@
 #include "base/basalstrength/basal_resistance.hh"
 #include "base/calving/PISMCalvingAtThickness.hh"
 #include "base/calving/PISMEigenCalving.hh"
+#include "base/calving/PISMCrevassesCalving.hh"
 #include "base/calving/PISMFloatKill.hh"
 #include "base/calving/PISMIcebergRemover.hh"
 #include "base/calving/PISMOceanKill.hh"
@@ -92,6 +93,7 @@ IceModel::IceModel(IceGrid::Ptr g, Context::Ptr context)
   float_kill_calving          = NULL;
   thickness_threshold_calving = NULL;
   eigen_calving               = NULL;
+  crevasses_calving           = NULL;
 
   // initializr maximum |u|,|v|,|w| in ice
   gmaxu = 0;
@@ -144,6 +146,8 @@ void IceModel::reset_counters() {
 
   land_flux_cumulative               = 0;
   ocean_flux_cumulative              = 0;
+  crevasses_calv_flux_cumulative     = 0;
+  crevasses_calv_flux_cumulative     = 0;
 }
 
 
@@ -182,6 +186,7 @@ IceModel::~IceModel() {
   delete float_kill_calving;
   delete thickness_threshold_calving;
   delete eigen_calving;
+  delete crevasses_calving;
 }
 
 
@@ -284,16 +289,17 @@ void IceModel::createVecs() {
 
   // grounded_dragging_floating integer mask
   vMask.create(m_grid, "mask", WITH_GHOSTS, WIDE_STENCIL);
-  vMask.set_attrs("diagnostic", "ice-type (ice-free/grounded/floating/ocean) integer mask",
+  vMask.set_attrs("diagnostic", "ice-type (ice-free/grounded/floating/ocean/lake) integer mask",
                   "", "");
-  std::vector<double> mask_values(4);
+  std::vector<double> mask_values(5);
   mask_values[0] = MASK_ICE_FREE_BEDROCK;
   mask_values[1] = MASK_GROUNDED;
   mask_values[2] = MASK_FLOATING;
   mask_values[3] = MASK_ICE_FREE_OCEAN;
+  mask_values[4] = MASK_ICE_LAKE;
   vMask.metadata().set_doubles("flag_values", mask_values);
   vMask.metadata().set_string("flag_meanings",
-                              "ice_free_bedrock grounded_ice floating_ice ice_free_ocean");
+                              "ice_free_bedrock grounded_ice floating_ice ice_free_ocean ice_lake");
   m_grid->variables().add(vMask);
 
   // upward geothermal flux at bedrock surface
@@ -364,7 +370,9 @@ void IceModel::createVecs() {
   }
 
   if (m_config->get_string("calving_methods").find("eigen_calving") != std::string::npos ||
-      m_config->get_boolean("do_fracture_density") == true) {
+      m_config->get_boolean("do_fracture_density") == true ||
+      m_config->get_string("calving_methods").find("crevasses_calving") != std::string::npos ||
+      m_config->get_boolean("do_crevasses_calving") == true) {
 
     strain_rates.create(m_grid, "edot", WITH_GHOSTS,
                         2, // stencil width, has to match or exceed the "offset" in eigenCalving
@@ -635,6 +643,48 @@ void IceModel::createVecs() {
     ocean_flux_2D_cumulative.set_time_independent(false);
     ocean_flux_2D_cumulative.metadata().set_string("glaciological_units", "Gt m-2");
     ocean_flux_2D_cumulative.write_in_glaciological_units = true;
+  }
+
+  //ccr -- crevasses
+  if (m_config->get_string("calving_methods").find("crevasses_calving") != std::string::npos ||
+      m_config->get_boolean("do_crevasses_calving") == true){
+    vsurface_crevasses_h.create(m_grid, "surface_crevasses", WITH_GHOSTS, WIDE_STENCIL);
+    vsurface_crevasses_h.set_attrs("diagnostic", "surface crevasses depth",
+                                  "m", "");
+    m_grid->variables().add(vsurface_crevasses_h);
+
+    vbottom_crevasses_h.create(m_grid, "bottom_crevasses", WITH_GHOSTS, WIDE_STENCIL);
+    vbottom_crevasses_h.set_attrs("diagnostic", "bottom crevasses depth",
+                                  "m", "");
+    m_grid->variables().add(vbottom_crevasses_h);
+
+    ///
+    //if ( set_contains(extras, "crevasses_calv_flux_2D")) {
+    crevasses_calv_flux_2D.create(m_grid, "crevasses_calv_flux_2D", WITHOUT_GHOSTS);
+    crevasses_calv_flux_2D.set_attrs("diagnostic",
+				     "crevasses-driven discharge (calving) flux (positive means ice loss)",
+				     "kg m-2", "");
+    crevasses_calv_flux_2D.set_time_independent(false);
+    crevasses_calv_flux_2D.metadata().set_string("glaciological_units", "Gt m-2");
+    crevasses_calv_flux_2D.write_in_glaciological_units = true;
+    //}
+
+    //if (set_contains(extras, "crevasses_calv_flux_2D_cumulative")) {
+    crevasses_calv_flux_2D_cumulative.create(m_grid, "crevasses_calv_flux_2D_cumulative", WITHOUT_GHOSTS);
+    crevasses_calv_flux_2D_cumulative.set_attrs("diagnostic",
+				      "cumulative crevasses-driven discharge (calving) flux (positive means ice loss)",
+				      "kg m-2", "");
+    crevasses_calv_flux_2D_cumulative.set_time_independent(false);
+    crevasses_calv_flux_2D_cumulative.metadata().set_string("glaciological_units", "Gt m-2");
+    crevasses_calv_flux_2D_cumulative.write_in_glaciological_units = true;
+    //}
+
+    if (set_contains(extras, "crevasses_dw")) {
+      vcrevasses_dw.create(m_grid, "crevasses_dw", WITHOUT_GHOSTS);
+      vcrevasses_dw.set_attrs("diagnostic", "water table in surface crevasses",
+                                  "m", "");
+      m_grid->variables().add(vcrevasses_dw);
+    }
   }
   //ccr -- end
 }

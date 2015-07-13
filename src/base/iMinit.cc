@@ -29,6 +29,7 @@
 #include "base/basalstrength/basal_resistance.hh"
 #include "base/calving/PISMCalvingAtThickness.hh"
 #include "base/calving/PISMEigenCalving.hh"
+#include "base/calving/PISMCrevassesCalving.hh"
 #include "base/calving/PISMFloatKill.hh"
 #include "base/calving/PISMIcebergRemover.hh"
 #include "base/calving/PISMOceanKill.hh"
@@ -248,6 +249,20 @@ void IceModel::model_state_setup() {
     if (run_stats.has_attribute("discharge_flux_cumulative")) {
       discharge_flux_cumulative = run_stats.get_double("discharge_flux_cumulative");
     }
+
+    if (run_stats.has_attribute("land_flux_cumulative")) {
+      land_flux_cumulative = run_stats.get_double("land_flux_cumulative");
+    }
+
+    if (run_stats.has_attribute("ocean_flux_cumulative")) {
+      ocean_flux_cumulative = run_stats.get_double("ocean_flux_cumulative");
+    }
+
+//ccr    if (run_stats.has_attribute("crevasses_calv_flux_cumulative")) {
+//ccr      crevasses_calv_flux_cumulative = run_stats.get_double("crevasses_calv_flux_cumulative");
+//ccr    }
+
+
   }
 
   compute_cell_areas();
@@ -699,6 +714,16 @@ void IceModel::init_calving() {
 
     eigen_calving->init();
     methods.erase("eigen_calving");
+  }
+
+  if (methods.find("crevasses_calving") != methods.end()) {
+
+    if (crevasses_calving == NULL) {
+      crevasses_calving = new calving::CrevassesCalving(m_grid, stress_balance);
+    }
+
+    crevasses_calving->init();
+    methods.erase("crevasses_calving");
   }
 
   if (methods.find("float_kill") != methods.end()) {
