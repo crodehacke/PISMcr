@@ -293,18 +293,18 @@ protected:
     cell_area,          //!< cell areas (computed using the WGS84 datum)
     flux_divergence;    //!< flux divergence
 
-  IceModelVec2S //ccr
-    land_flux_2D,             //!< flux on land (incl. lakes)
+  IceModelVec2S land_flux_2D, //!< flux on land (incl. lakes)
     ocean_flux_2D,            //!< flux on ocean (excl. lakes)
     land_flux_2D_cumulative,  //!< cumulative flux on land (incl. lakes)
     ocean_flux_2D_cumulative; //!< cumulative flux on the ocean (excl. lakes)
 
   // some more diagnostics/internals
+  //public: //??? fixme
   IceModelVec2S crevasses_calv_flux_2D,//!< crevasses calving
     crevasses_calv_flux_2D_cumulative, //!< cumulative crevasses calving
-    vsurface_crevasses_h,  //!< surface crevasses depth
-    vbottom_crevasses_h,   //!< bottom crevasses depth
-    vcrevasses_dw;         //!< water table in crevasses
+    surface_crevasses_h,  //!< surface crevasses depth
+    bottom_crevasses_h,   //!< bottom crevasses depth
+    crevasses_dw;         //!< water table in crevasses
 
 
 

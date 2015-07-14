@@ -146,7 +146,7 @@ void IceModel::reset_counters() {
 
   land_flux_cumulative               = 0;
   ocean_flux_cumulative              = 0;
-  crevasses_calv_flux_cumulative     = 0;
+  crevasses_calv_flux                = 0;
   crevasses_calv_flux_cumulative     = 0;
 }
 
@@ -227,7 +227,10 @@ void IceModel::createVecs() {
                   "J kg-1", "");
   m_grid->variables().add(Enth3);
 
-  if (m_config->get_boolean("do_cold_ice_methods")) {
+  if (m_config->get_boolean("do_cold_ice_methods")) { 
+  //ccr-new if (m_config->get_boolean("do_cold_ice_methods") || 
+  //ccr-new     m_config->get_string("calving_methods").find("crevasses_calving") != std::string::npos ||
+  //ccr-new     m_config->get_boolean("do_crevasses_calving") == true) {
     // ice temperature
     T3.create(m_grid, "temp", WITH_GHOSTS);
     T3.set_attrs("model_state",
@@ -604,7 +607,7 @@ void IceModel::createVecs() {
     discharge_flux_2D_cumulative.write_in_glaciological_units = true;
   }
 
-  //ccr -- begin
+
   if ( set_contains(extras, "land_flux_2D")) {
     land_flux_2D.create(m_grid, "land_flux_2D", WITHOUT_GHOSTS);
     land_flux_2D.set_attrs("diagnostic",
@@ -645,18 +648,18 @@ void IceModel::createVecs() {
     ocean_flux_2D_cumulative.write_in_glaciological_units = true;
   }
 
-  //ccr -- crevasses
+
   if (m_config->get_string("calving_methods").find("crevasses_calving") != std::string::npos ||
       m_config->get_boolean("do_crevasses_calving") == true){
-    vsurface_crevasses_h.create(m_grid, "surface_crevasses", WITH_GHOSTS, WIDE_STENCIL);
-    vsurface_crevasses_h.set_attrs("diagnostic", "surface crevasses depth",
+    surface_crevasses_h.create(m_grid, "surface_crevasses", WITH_GHOSTS, WIDE_STENCIL);
+    surface_crevasses_h.set_attrs("diagnostic", "surface crevasses depth",
                                   "m", "");
-    m_grid->variables().add(vsurface_crevasses_h);
+    m_grid->variables().add(surface_crevasses_h);
 
-    vbottom_crevasses_h.create(m_grid, "bottom_crevasses", WITH_GHOSTS, WIDE_STENCIL);
-    vbottom_crevasses_h.set_attrs("diagnostic", "bottom crevasses depth",
+    bottom_crevasses_h.create(m_grid, "bottom_crevasses", WITH_GHOSTS, WIDE_STENCIL);
+    bottom_crevasses_h.set_attrs("diagnostic", "bottom crevasses depth",
                                   "m", "");
-    m_grid->variables().add(vbottom_crevasses_h);
+    m_grid->variables().add(bottom_crevasses_h);
 
     ///
     //if ( set_contains(extras, "crevasses_calv_flux_2D")) {
@@ -667,6 +670,7 @@ void IceModel::createVecs() {
     crevasses_calv_flux_2D.set_time_independent(false);
     crevasses_calv_flux_2D.metadata().set_string("glaciological_units", "Gt m-2");
     crevasses_calv_flux_2D.write_in_glaciological_units = true;
+    m_grid->variables().add(crevasses_calv_flux_2D);
     //}
 
     //if (set_contains(extras, "crevasses_calv_flux_2D_cumulative")) {
@@ -680,13 +684,12 @@ void IceModel::createVecs() {
     //}
 
     if (set_contains(extras, "crevasses_dw")) {
-      vcrevasses_dw.create(m_grid, "crevasses_dw", WITHOUT_GHOSTS);
-      vcrevasses_dw.set_attrs("diagnostic", "water table in surface crevasses",
+      crevasses_dw.create(m_grid, "crevasses_dw", WITHOUT_GHOSTS);
+      crevasses_dw.set_attrs("diagnostic", "water table in surface crevasses",
                                   "m", "");
-      m_grid->variables().add(vcrevasses_dw);
+      m_grid->variables().add(crevasses_dw);
     }
   }
-  //ccr -- end
 }
 
 //! The contents of the main PISM time-step.

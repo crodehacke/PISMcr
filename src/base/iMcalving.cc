@@ -34,7 +34,7 @@
 #include "base/util/PISMConfigInterface.hh"
 #include "base/util/pism_const.hh"
 #include "coupler/PISMOcean.hh"
-#include "earth/PISMBedDef.hh" //ccr
+#include "earth/PISMBedDef.hh"
 
 namespace pism {
 
@@ -49,7 +49,6 @@ void IceModel::do_calving() {
     &old_H    = vWork2d[0],
     &old_Href = vWork2d[1];
 
-  //ccr-org if (compute_cumulative_discharge) {
   if (compute_cumulative_discharge || compute_ocean_flux_2D || 
       compute_cumulative_ocean_flux_2D || 
       compute_cumulative_crevasses_calv_flux_2D ) {
@@ -66,11 +65,20 @@ void IceModel::do_calving() {
     eigen_calving->update(dt, vMask, vHref, ice_thickness);
   }
 
+  // crevasses-calving utilizes the strain rates of icy points to
+  // determine if surface and bottom crevasses meet, which leads to
+  // calving.
   if (crevasses_calving != NULL) {
-    double sea_level = ocean->sea_level_elevation();
-    //const IceModelVec2S &bed_topography = beddef->bed_elevation();
+    IceModelVec2S &surface_h = surface_crevasses_h;
+    IceModelVec2S &bottom_h = bottom_crevasses_h;
+    IceModelVec2S &crevasse_dw = crevasses_dw;
+    IceModelVec2S &crevasse_flux_2D = crevasses_calv_flux_2D;
+    const IceModelVec2S &bed_topo = beddef->bed_elevation();
+    const double sea_level = ocean->sea_level_elevation();
 
-    crevasses_calving->update(dt, vMask, vHref, ice_thickness, sea_level, T3) ; //, bed, T3, zlevel);
+    crevasses_calving->update(dt, vMask, vHref, ice_thickness,
+    			      surface_h, bottom_h, crevasse_dw,
+			      crevasse_flux_2D, bed_topo, T3, sea_level);
   }
 
   if (ocean_kill_calving != NULL) {
@@ -152,7 +160,10 @@ void IceModel::update_cumulative_discharge(const IceModelVec2S &thickness,
 
   const bool update_ocean_flux_2D = ocean_flux_2D.was_created(),
     update_cumulative_ocean_flux_2D = ocean_flux_2D_cumulative.was_created();
-    //update_cumulative_crevasses_calv_flux_2D = crevasses_calv_flux_2D_cumulative.was_created(); //ccr fixme
+  const bool update_crevasses_calv_flux_2D = crevasses_calv_flux_2D.was_created(),
+    update_cumulative_crevasses_calv_flux_2D = crevasses_calv_flux_2D_cumulative.was_created();
+  double my_total_crevasses_discharge = 0.0, total_crevasses_discharge;
+
 
   IceModelVec::AccessList list;
   list.add(thickness);
@@ -164,20 +175,18 @@ void IceModel::update_cumulative_discharge(const IceModelVec2S &thickness,
     list.add(discharge_flux_2D_cumulative);
   }
 
-  //ccr -- begin
   if (update_ocean_flux_2D) {
     list.add(ocean_flux_2D);
   }
   if (update_cumulative_ocean_flux_2D) {
     list.add(ocean_flux_2D_cumulative);
   }
-  //ccr fixme
-// -> maybe we need to access also the current calving rate
-//  if (update_cumulative_crevasses_calv_flux_2D) {
-//    list.add(crevasses_calv_flux_2D_cumulative);
-//    list.add(crevasses_calv_CALVING_????);
-//  }
-  //ccr -- end
+  if (update_crevasses_calv_flux_2D) {
+    list.add(crevasses_calv_flux_2D);
+    if (update_cumulative_crevasses_calv_flux_2D) {
+      list.add(crevasses_calv_flux_2D_cumulative);
+    }
+  }
 
   if (use_Href) {
     list.add(Href);
@@ -205,34 +214,53 @@ void IceModel::update_cumulative_discharge(const IceModelVec2S &thickness,
       } else {
         delta_Href = 0.0;
       }
-
+      // Contains already the contribution of crevasses-driven calving
+      // Fixme: Separate the discharge into its individual contributions 
+      //        from -eigen_calving, -crevasses_calving, etc..
       discharge = (delta_H + delta_Href) * cell_area(i,j) * ice_density;
 
       if (update_2d_discharge) {
         discharge_flux_2D_cumulative(i,j) += discharge;
       }
 
-      //ccr -- begin
       if (update_ocean_flux_2D) {
-	ocean_flux_2D(i,j) += discharge; //Before in massContExplicitStep(), the contribution of =basal_melting
+	//Before in massContExplicitStep(),
+	//the contribution of =basal_melting
+	ocean_flux_2D(i,j) += discharge;
       }
       if (update_cumulative_ocean_flux_2D) {
 	ocean_flux_2D_cumulative(i,j) += discharge;
       }
-      //ccr -- end
 
       my_total_discharge += discharge;
     }
+
+    //Special treatment of crevasses calving
+    if (update_crevasses_calv_flux_2D) {
+      //crevasses_calv_flux_2D(i, j) = //returned: crevasses_calving->update
+      my_total_crevasses_discharge += crevasses_calv_flux_2D(i, j);
+      if (update_cumulative_crevasses_calv_flux_2D) {
+	crevasses_calv_flux_2D_cumulative(i, j) += crevasses_calv_flux_2D(i, j);
+      }
+    }
+
   }
 
   total_discharge = GlobalSum(m_grid->com, my_total_discharge);
 
   this->discharge_flux_cumulative += total_discharge;
 
-  //ccr -- begin
-  this->ocean_flux            += total_discharge; //Before in massContExplicitStep(), basal_melting contribution
+  //Note: Muss be behind total_discharge, to avoid double accounting,
+  //      because discharge contains the calving contribution from
+  //      -eigen_calving, -crevasses_calving, ... . 
+  //      See above separation of calving/discharge contributions
+  total_crevasses_discharge = GlobalSum(m_grid->com, my_total_crevasses_discharge);
+
+  this->crevasses_calv_flux_cumulative += total_crevasses_discharge;
+
+  // Before in massContExplicitStep(), basal_melting contribution
+  this->ocean_flux            += total_discharge;
   this->ocean_flux_cumulative += total_discharge;
-  //ccr -- end
 }
 
 } // end of namespace pism

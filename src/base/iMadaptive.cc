@@ -293,7 +293,8 @@ void IceModel::max_timestep(double &dt_result, unsigned int &skip_counter_result
     }
 
     if (crevasses_calving != NULL) {
-      MaxTimestep crevassescalving_dt = crevasses_calving->max_timestep();
+      const double sea_level = ocean->sea_level_elevation();
+      MaxTimestep crevassescalving_dt = crevasses_calving->max_timestep(sea_level);
       if (crevassescalving_dt.is_finite()) {
         dt_restrictions["crevassescalving"] = crevassescalving_dt.value();
       }
