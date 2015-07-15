@@ -21,6 +21,7 @@
 
 #include "base/util/iceModelVec.hh"
 #include "base/util/PISMComponent.hh"
+#include "coupler/PISMOcean.hh" //ccr
 
 namespace pism {
 namespace stressbalance {
@@ -44,9 +45,9 @@ public:
 	      IceModelVec2S &bottom_h,
 	      IceModelVec2S &crevasse_dw,
 	      IceModelVec2S &crevasse_flux_2D,
-	      const IceModelVec2S &bed,
-	      const IceModelVec3 &T3,
 	      const double sea_level);
+              //ccr-future: IceModelVec2S &crevasse_dwdt,
+              //ccr-future: const IceModelVec2S &smb);
 
   MaxTimestep max_timestep(const double sea_level);
 
@@ -57,8 +58,10 @@ protected:
   virtual void define_variables_impl(const std::set<std::string> &vars, const PIO &nc,
                                      IO_Type nctype);
   void update_strain_rates();
-  void update_water_table_crevasses(IceModelVec2S &m_crevasse_dw,
-				    IceModelVec2S &crevasse_dw);
+  void update_water_table_crevasses(IceModelVec2S &crevasse_dw_input,
+				    IceModelVec2S &crevasse_dw_return);
+                                    //ccr-future: IceModelVec2S &crevasse_dwdt,
+                                    //ccr-future: const IceModelVec2S &smb);
   void update_crevasses_depths(IceModelVec2S &surface_h,
 			       IceModelVec2S &bottom_h,
 			       const IceModelVec2Int &pism_mask,
@@ -71,17 +74,13 @@ protected:
   void remove_narrow_tongues(IceModelVec2Int &pism_mask, IceModelVec2S &ice_thickness);
 protected:
   IceModelVec2 m_strain_rates;
-  IceModelVec2S m_thk_loss;
-  IceModelVec2S m_crevasse_dw, m_total_h;
+  IceModelVec2S m_thk_loss, m_total_h, m_crevasse_dw; //ccr-future: m_crevasse_dwdt;
   IceModelVec2S m_surface_h, m_bottom_h; //Only for CrevassesCalving::max_timestep
   const int m_stencil_width;
   stressbalance::StressBalance *m_stress_balance;
+  ocean::OceanModel *m_ocean;
   double m_dw, m_dw0, m_ice_density;
-//ccr-tmp    m_A_cold, m_A_warm, m_Q_cold, m_Q_warm, m_crit_temp, m_Glen_n_ssa;
-//ccr-tmp  double m_p_air, m_fresh_water_density, m_sea_water_density,
-//ccr-tmp    m_standard_gravity, m_R;
   bool m_restrict_timestep;
-  double m_K; //fixme *finally* not needed
 };
 
 } // end of namespace calving

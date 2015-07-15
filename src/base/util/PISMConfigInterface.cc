@@ -538,6 +538,20 @@ void set_config_from_options(Config &config) {
     config.set_boolean("sub_groundingline", true, Config::USER);
   }
 
+//ccr-future:   {
+//ccr-future:     // option "-dmi" turns on a suite of DMI effects (for coupling PISM to EC-Earth)
+//ccr-future:     bool dmi = options::Bool("-dmi", "enable suite of coupling DMI mechanisms");
+//ccr-future:     if (dmi) {
+//ccr-future:       config.set_string("institution", "Danish Meterological Institute, Copenhagen, Denmark", Config::USER);
+//ccr-future:     }
+//ccr-future:     // option "-ec_earth" turns on a suite of EC-Earth effects (for coupling PISM to EC-Earth)
+//ccr-future:     bool ec_earth = options::Bool("-ec_earth", "enable suite of coupling PISM with EC-Earth");
+//ccr-future:     if (ec_earth) {
+//ccr-future:       // Will be filled: ccr
+//ccr-future:       config.set_string("run_title", "Coupled PISM--EC-Earth simulation", Config::USER);
+//ccr-future:     }
+//ccr-future:   }
+
   if (config.get_string("calving_methods").find("eigen_calving") != std::string::npos) {
     config.set_boolean("part_grid", true, Config::USER);
     // eigen-calving requires a wider stencil:
@@ -580,7 +594,9 @@ void set_config_from_options(Config &config) {
   options::deprecated("-eigen_calving", "-calving eigen_calving -eigen_calving_K XXX");
   options::deprecated("-calving_at_thickness",
                       "-calving thickness_calving -thickness_calving_threshold XXX");
-  options::deprecated("-crevasses_calving", "-calving crevasses_calving -ZZZ XXX");
+  options::deprecated("-crevasses_calving", "-calving crevasses_calving [-crevasses_calving_dw XXX] [-crevasses_calving_dw0 XXX]");
+  options::deprecated("-dw XXX", "-crevasses_calving_dw XXX");
+  options::deprecated("-crevasses_dw_melt"," NOT_YET_IMPLEMENTED");
   options::deprecated("-float_kill", "-calving float_kill");
   options::deprecated("-no_energy", "-energy none");
   options::deprecated("-cold", "-energy cold");

@@ -17,7 +17,6 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-//#include "base/iceModel.hh" //ccr needed?? fixme
 #include "PISMCrevassesCalving.hh"
 #include "base/stressbalance/PISMStressBalance.hh"
 #include "base/util/IceGrid.hh"
@@ -53,22 +52,24 @@ CrevassesCalving::CrevassesCalving(IceGrid::ConstPtr g,
 			   "minor principal component of horizontal strain-rate",
 			   "1/s", "", 1);
 
-  m_restrict_timestep = m_config->get_boolean("cfl_eigen_calving"); //ccr FIXME
-
-  m_K = m_config->get_double("eigen_calving_K"); //ccr FIXME
+  m_restrict_timestep = m_config->get_boolean("cfl_crevasses_calving");
 
   //ccr -- here crevasses calving specific variables
   m_crevasse_dw.create(m_grid, "temporary_crevasse_dw", WITH_GHOSTS, 1);
   m_crevasse_dw.set_attrs("diagnostic", "water table in surface crevasses",
 			 "m", "");
 
+  //ccr-future: m_crevasse_dwdt.create(m_grid, "temporary_crevasse_dwdt", WITH_GHOSTS, 1);
+  //ccr-future: m_crevasse_dwdt.set_attrs("diagnostic", "change water table in surface crevasses",
+  //ccr-future: 			 "kg m-2", "");
+
   // Only
-  m_surface_h.create(m_grid, "temporary_surface_crevasses_depth",
+  m_surface_h.create(m_grid, "temporary_crevasses_surface_depth",
 		     WITH_GHOSTS, 1);
   m_surface_h.set_attrs("diagnostic", "surface crevasses depth",
 			"m", "");
 
-  m_bottom_h.create(m_grid, "temporary_bottom_crevasse_depth",
+  m_bottom_h.create(m_grid, "temporary_crevasses_bottom_depth",
 		    WITH_GHOSTS, 1);
   m_bottom_h.set_attrs("diagnostic", "bottom crevasses depth",
 		       "m", "");
@@ -85,23 +86,6 @@ CrevassesCalving::CrevassesCalving(IceGrid::ConstPtr g,
   m_dw0 = m_config->get_double("crevasses_calving_dw0");
   m_ice_density = m_config->get_double("ice_density");
 
-
-  // initialiaztion of fields
-  IceModelVec::AccessList list;
-  list.add(m_surface_h);
-  list.add(m_bottom_h);
-  list.add(m_total_h);
-  list.add(m_crevasse_dw);
-
-  for (Points pt(*m_grid); pt; pt.next()) {
-    const int i = pt.i(), j = pt.j();
-    m_surface_h(i, j) = 0.0;
-    m_bottom_h(i, j) = 0.0;
-    m_total_h(i, j) = 0.0;
-    //ccr FIXME Ongoing melting shall increase the value
-    //    of m_crevasse_dw while it otherwise decreases
-    m_crevasse_dw(i, j) = m_dw;
-  }
 }
 
 CrevassesCalving::~CrevassesCalving() {
@@ -111,7 +95,11 @@ CrevassesCalving::~CrevassesCalving() {
 void CrevassesCalving::init() {
 
   m_log->message(2,
-             "* Initializing the 'eigen-calving' mechanism...\n");
+		 "* Initializing the 'crevasses_calving' mechanism... setting constants...\n"
+		 "         standard crevasses water depth dw = %.2f m\n"
+		 "         minimal crevasses water depth dw0 = %.2f m\n",
+		 m_dw, m_dw0);
+
 
   if (fabs(m_grid->dx() - m_grid->dy()) / std::min(m_grid->dx(), m_grid->dy()) > 1e-2) {
     throw RuntimeError::formatted("-calving crevasses_calving using a non-square grid cell is not implemented (yet);\n"
@@ -121,6 +109,16 @@ void CrevassesCalving::init() {
   }
 
   m_strain_rates.set(0.0);
+
+  m_surface_h.set(0.0);
+  m_bottom_h.set(0.0);
+  m_total_h.set(0.0);
+  //ccr FIXME Ongoing melting shall increase the value
+  //    of m_crevasse_dw while it otherwise decreases
+  // NOTE: It would require to read this value during restart !!
+  m_crevasse_dw.set(m_dw);
+  //ccr-future: m_crevasse_dwdt.set(0.0);
+
 
 }
 
@@ -151,12 +149,14 @@ void CrevassesCalving::update(double dt,
 			      IceModelVec2S &bottom_h,
 			      IceModelVec2S &crevasse_dw,
 			      IceModelVec2S &crevasse_flux_2D,
-			      const IceModelVec2S &bed,
-			      const IceModelVec3 &T3,
 			      const double sea_level=0.0) {
+                              //ccr-future: IceModelVec2S &crevasse_dwdt=0.0,
+                              //ccr-future: const IceModelVec2S &smb=0.0) {
+
+  const IceModelVec2S &bed = *m_grid->variables().get_2d_scalar("bedrock_altitude");
+  const IceModelVec3 &T3 = *m_grid->variables().get_3d_scalar("temp");
 
   // Distance (grid cells) from calving front where strain rate is evaluated
-  int offset = m_stencil_width; //fixme Needed??
   double crevasses_calving_rate_horizontal;
   const double reciprocal_dt = 1.0/dt;
 
@@ -165,12 +165,14 @@ void CrevassesCalving::update(double dt,
   update_strain_rates();
 
   // Determine the actual water table in the crevasses (dw)
-  update_water_table_crevasses(m_crevasse_dw, crevasse_dw);
+  // Currently we *ONLY* copy the value of 
+  update_water_table_crevasses(m_crevasse_dw, crevasse_dw);//ccr-future: , crevasse_dwdt, smb);
 
   // Update the surface and bottom crevasses depth
   update_crevasses_depths(surface_h, bottom_h, pism_mask,
 			  Href, ice_thickness, bed, T3,
 			  crevasse_dw, sea_level);
+
 
   MaskQuery mask(pism_mask);
 
@@ -180,88 +182,15 @@ void CrevassesCalving::update(double dt,
   list.add(Href);
   list.add(m_thk_loss);
   list.add(m_total_h);
+  list.add(crevasse_flux_2D);
+  list.add(m_crevasse_dw);
+  list.add(crevasse_dw);
 
-  //->update_crevasses_depths  list.add(m_strain_rates);
-  //->update_crevasses_depths  list.add(T3);
-  //->update_crevasses_depths  list.add(bed);
-  //->update_crevasses_depths  list.add(m_surface_h);
-  //->update_crevasses_depths  list.add(m_bottom_h);
-  //->update_crevasses_depths  list.add(m_crevasse_dw); //ccr
-  
-  //
-  //->update_crevasses_depths  // Compute required fields
-  //->update_crevasses_depths  for (Points pt(*m_grid); pt; pt.next()) {
-  //->update_crevasses_depths    const int i = pt.i(), j = pt.j();
-  //->update_crevasses_depths    // Crevasses specific values
-  //->update_crevasses_depths    double
-  //->update_crevasses_depths      A, Re0, Re1, R_iceg;
-  //->update_crevasses_depths
-  //->update_crevasses_depths    // Compute fields 
-  //->update_crevasses_depths    m_surface_h(i, j) = 0.0;
-  //->update_crevasses_depths    m_bottom_h(i, j) = 0.0;
-  //->update_crevasses_depths    m_total_h(i, j) = 0.0;
-  //->update_crevasses_depths    //if (mask.ice_margin(i, j)) {
-  //->update_crevasses_depths    if (mask.icy(i, j)) {
-  //->update_crevasses_depths      double Tice, Hab = 0.0;
-  //->update_crevasses_depths      unsigned int k=0; 
-  //->update_crevasses_depths      double beta=m_config->get_double("beta_CC");
-  //->update_crevasses_depths      double depth = sea_level - bed(i, j);
-  //->update_crevasses_depths
-  //->update_crevasses_depths      Tice = T3(i, j, k);
-  //->update_crevasses_depths      // Box height weighted temperature (not used)
-  //->update_crevasses_depths      //   const unsigned int ks = m_grid->kBelowHeight(thk(i, j));
-  //->update_crevasses_depths      //     Hab = (m_grid->z(k) - m_grid->z(k-1));
-  //->update_crevasses_depths      //     Tice = T3(i, j, k) * Hab;
-  //->update_crevasses_depths      //     for (k=0; k< m_grid->Mz()-1; ++k){
-  //->update_crevasses_depths      //     //for (k=0; k<= ks; ++k){
-  //->update_crevasses_depths      //      //Test double dz0=10;
-  //->update_crevasses_depths      ////old code; might be not correct
-  //->update_crevasses_depths      ////    double dz0 = m_grid->z(k);
-  //->update_crevasses_depths      ////    double dz1 = m_grid->z(k+1);
-  //->update_crevasses_depths      ////fixme This should be correct or?? 
-  //->update_crevasses_depths      //      double dz0 = m_grid->z(k) - m_grid->z(k-1);
-  //->update_crevasses_depths      //      double dz1 = m_grid->z(k+1) - m_grid->z(k);
-  //->update_crevasses_depths      //      Hab = Hab + dz0; 
-  //->update_crevasses_depths      //      // Check if Href is the correct variable // FIXMEE
-  //->update_crevasses_depths      //      if ( Href(i, j) < Hab+dz1 ) break;  // leave the loop, when the integrated height plus the next layer exceeds the ice thickness
-  //->update_crevasses_depths      //     }
-  //->update_crevasses_depths      if (m_ice_density*Href(i, j) < depth) {
-  //->update_crevasses_depths	// floating ice: ice thickness below sea level is less than bedroch depth
-  //->update_crevasses_depths	Hab = 0.0;
-  //->update_crevasses_depths      } else {
-  //->update_crevasses_depths	// ice thickness below water exceeds bedrock depth
-  //->update_crevasses_depths	Hab = Href(i, j) - m_sea_water_density * depth;
-  //->update_crevasses_depths      }
-  //->update_crevasses_depths      double p = m_p_air + m_ice_density * m_standard_gravity * Href(i, j);
-  //->update_crevasses_depths      double T_pa = Tice - beta * p;
-  //->update_crevasses_depths      
-  //->update_crevasses_depths      if (T_pa < m_crit_temp) {
-  //->update_crevasses_depths	A = m_A_cold * exp(-m_Q_cold/(m_R*T_pa));
-  //->update_crevasses_depths      } else {
-  //->update_crevasses_depths	A = m_A_warm * exp(-m_Q_warm/(m_R*T_pa));
-  //->update_crevasses_depths      }
-  //->update_crevasses_depths      
-  //->update_crevasses_depths      Re0 = 2.0 * pow(( std::max(m_strain_rates(i, j, 0),0.0) /A),(1.0/m_Glen_n_ssa)); // principal component 0, 1st eigenvalue
-  //->update_crevasses_depths      Re1 = 2.0 * pow(( std::max(m_strain_rates(i, j, 1),0.0) /A),(1.0/m_Glen_n_ssa)); // principal component 1, 2nd eigenvalue
-  //->update_crevasses_depths      
-  //->update_crevasses_depths      R_iceg = sqrt(Re0*Re0+Re1*Re1)/(m_ice_density/m_standard_gravity);
-  //->update_crevasses_depths      
-  //->update_crevasses_depths      m_surface_h(i, j) = R_iceg + m_fresh_water_density/m_ice_density * m_crevasse_dw(i, j);
-  //->update_crevasses_depths      m_bottom_h(i, j) = (1.0/(m_sea_water_density-1.0)) * std::max(R_iceg-Hab, 0.0); // std::max( , 0.) avoids unphysical negative values
-  //->update_crevasses_depths      m_total_h(i, j) = surface_h(i, j) + bottom_h(i, j);
-  //->update_crevasses_depths    }
-  //->update_crevasses_depths  }
-  
 
   // Compute where crevasses-driven calving occurs along the margin
   for (Points pt(*m_grid); pt; pt.next()) {
     const int i = pt.i(), j = pt.j();
-    // Neighbor-averaged ice thickness:
-    double H_average = 0.0;
     //double area = m_grid->dx() * m_grid->dy();
-    int N_floating_neighbors = 0, M = 0;
-    // M is the number of cells used to compute averages of strain
-    // rate components.
 
     crevasse_flux_2D(i, j) = 0.0; //If not calving, take zero
 
@@ -270,53 +199,10 @@ void CrevassesCalving::update(double dt,
     if (mask.ice_free_ocean(i, j) &&
         mask.next_to_ice(i, j)) {
 
-      //if (mask.floating_ice(i + 1, j)) {
-      //  N_floating_neighbors += 1;
-      //  H_average += ice_thickness(i + 1, j);
-      //}
-      //
-      //if (mask.floating_ice(i - 1, j)) {
-      //  N_floating_neighbors += 1;
-      //  H_average += ice_thickness(i - 1, j);
-      //}
-      //
-      //if (mask.floating_ice(i, j + 1)) {
-      //  N_floating_neighbors += 1;
-      //  H_average += ice_thickness(i, j + 1);
-      //}
-      //
-      //if (mask.floating_ice(i, j - 1)) {
-      //  N_floating_neighbors += 1;
-      //  H_average += ice_thickness(i, j - 1);
-      //}
-      //
-      //if (N_floating_neighbors > 0) {
-      //  H_average /= N_floating_neighbors;
-      //}
-
       // Ice margin with contact to an ocean point
       if (m_total_h(i, j) >= ice_thickness(i, j) + Href(i, j) ) {
 	m_thk_loss(i, j) = ice_thickness(i, j) + Href(i, j);
       }
-
-      //// apply calving rate at partially filled or empty grid cells
-      //if (crevasses_calving_rate_horizontal > 0.0) {
-      //	Href(i, j) -= crevasses_calving_rate_horizontal * dt; // in m
-      //	
-      //	if (Href(i, j) < 0.0) {
-      //	  // Partially filled grid cell became ice-free
-      //	  
-      //	  m_thk_loss(i, j) = -Href(i, j); // in m, corresponds to additional ice loss
-      //	  Href(i, j)       = 0.0;
-      //	  
-      //	  // additional mass loss will be distributed among
-      //	  // N_floating_neighbors:
-      //	  if (N_floating_neighbors > 0) {
-      //	    m_thk_loss(i, j) /= N_floating_neighbors;
-      //	  }
-      //	}
-      //}
-
       // end of "if (ice_free_ocean && next_to_floating)"
     } else {
       // Icy margin with contact to an ocean point
@@ -349,26 +235,7 @@ void CrevassesCalving::update(double dt,
       ice_thickness(i, j) = 0.0;
       pism_mask(i, j) = MASK_ICE_FREE_OCEAN;
     }
-
-    //old double thk_loss_ij = 0.0;
-    //old 
-    //old if (mask.floating_ice(i, j) &&
-    //old     (m_thk_loss(i + 1, j) > 0.0 || m_thk_loss(i - 1, j) > 0.0 ||
-    //old      m_thk_loss(i, j + 1) > 0.0 || m_thk_loss(i, j - 1) > 0.0)) {
-    //old 
-    //old   thk_loss_ij = (m_thk_loss(i + 1, j) + m_thk_loss(i - 1, j) +
-    //old                  m_thk_loss(i, j + 1) + m_thk_loss(i, j - 1));     // in m/(dt=s)
-    //old 
-    //old   // Note std::max: we do not account for further calving
-    //old   // ice-inwards! Alternatively CFL criterion for time stepping
-    //old   // could be adjusted to maximum of calving rate
-    //old   Href(i, j) = std::max(ice_thickness(i, j) - thk_loss_ij, 0.0); // in m
-    //old 
-    //old   ice_thickness(i, j) = 0.0;
-    //old   pism_mask(i, j) = MASK_ICE_FREE_OCEAN;
-    //old }
   }
-
 
   pism_mask.update_ghosts();
 
@@ -382,7 +249,8 @@ void CrevassesCalving::update(double dt,
 
 /**
  * @brief Compute the maximum time-step length allowed by the CFL
- * condition applied to the crevasses calving rate.
+ * condition applied to the crevasses calving rate. To active it set
+ * the pism_config the cfl_crevasses_calving="yes";
  *
  * Note: this code uses the mask variable obtained from the Vars
  * dictionary. This is not the same mask that is used in the update()
@@ -391,24 +259,21 @@ void CrevassesCalving::update(double dt,
  *
  * @return 0 on success
  */
-MaxTimestep CrevassesCalving::max_timestep(const double sea_level=0.0) {
+  MaxTimestep CrevassesCalving::max_timestep(const double sea_level=0.0) {
 
   if (not m_restrict_timestep) {
     return MaxTimestep();
   }
 
   // About 9 hours which corresponds to 10000 km/year on a 10 km grid
-  double dt_min = units::convert(m_sys, 0.001, "years", "seconds");
+  const double dt_min = units::convert(m_sys, 0.001, "years", "seconds");
+  const double assumed_speed_maximum = 1.0e5/(365.0*86400.0); //Unit: meter/second
+  const double scaler_of_modeled_speed = 1.015;
 
-  // Distance (grid cells) from calving front where strain rate is evaluated
-  int offset = m_stencil_width;
   double my_velocity = 0.0,
     my_crevasse_calv_distance_max     = 0.0,
     my_crevasse_calv_distance_counter = 0.0;
     //my_crevasse_calv_distance_mean  = 0.0,
-
-  const double assumed_speed_maximum = 1.0e5/(365.0*86400.0); //Unit: meter/second
-  const double scaler_of_modeled_speed = 1.015;
 
   const IceModelVec2Int &mask = *m_grid->variables().get_2d_mask("mask");
   const IceModelVec2S &Href = *m_grid->variables().get_2d_scalar("Href");
@@ -419,7 +284,7 @@ MaxTimestep CrevassesCalving::max_timestep(const double sea_level=0.0) {
   // Take the surface speed, which is usally the highest in vertical columns of ice
   const IceModelVec2S &surf_speed = *m_grid->variables().get_2d_scalar("velsurf_mag");
 
-  //double sea_level = ocean->sea_level_elevation(); //FIXME How to access it??
+  //double sea_level0 = *m_ocean->sea_level_elevation(); //FIXME How to access it??
 
   MaskQuery m(mask);
 
@@ -449,27 +314,52 @@ MaxTimestep CrevassesCalving::max_timestep(const double sea_level=0.0) {
 
     my_velocity = std::max(my_velocity, surf_speed(i, j));
   
-    if (m.ice_margin(i, j) && 
-	m_total_h(i, j) >= total_ice_thickness) {
-      // Fully filled boxes
+    if (m_total_h(i, j) >= total_ice_thickness) {
+      if (m.ice_margin(i, j)) {
+	// Fully filled boxes
+	double crevasse_calv_distance_horizontal = m_grid->dx();
 
-      double crevasse_calv_distance_horizontal = m_grid->dx();
+	my_crevasse_calv_distance_counter += 1.0;
+	  //my_crevasse_calv_distance_mean += crevasse_calv_distance_horizontal;
+	my_crevasse_calv_distance_max = std::max(my_crevasse_calv_distance_max, crevasse_calv_distance_horizontal);
 
-      my_crevasse_calv_distance_counter += 1.0;
-	//my_crevasse_calv_distance_mean += crevasse_calv_distance_horizontal;
-      my_crevasse_calv_distance_max = std::max(my_crevasse_calv_distance_max, crevasse_calv_distance_horizontal);
-
-    } else if (m.next_to_ice(i, j) && ice_thickness(i, j) > 0.0 &&
-	       m_total_h(i, j) >= total_ice_thickness) {
-      // Potentially partly filled boxes
-
-      double fraction_coverage = std::min(Href(i, j) / ice_thickness(i, j), 1.0);
-      double crevasse_calv_distance_horizontal = m_grid->dx() * fraction_coverage;
+      } else if (m.next_to_ice(i, j)) {
+	// Potentially partly filled boxes
+	double fraction_coverage;
+	if (ice_thickness(i, j) > 0.0) {
+	  fraction_coverage = std::min(Href(i, j) / ice_thickness(i, j), 1.0);
+	} else {
+	  fraction_coverage = 0.99;
+	}
+	double crevasse_calv_distance_horizontal = m_grid->dx() * fraction_coverage;
   
-      my_crevasse_calv_distance_counter += fraction_coverage;
-	//my_crevasse_calv_distance_mean += crevasse_calv_distance_horizontal;
-      my_crevasse_calv_distance_max = std::max(my_crevasse_calv_distance_max, crevasse_calv_distance_horizontal);
+	my_crevasse_calv_distance_counter += fraction_coverage;
+	  //my_crevasse_calv_distance_mean += crevasse_calv_distance_horizontal;
+	my_crevasse_calv_distance_max = std::max(my_crevasse_calv_distance_max, crevasse_calv_distance_horizontal);
+      }
     }
+
+     //    if (m.ice_margin(i, j) && 
+     //	m_total_h(i, j) >= total_ice_thickness) {
+     //      // Fully filled boxes
+     //
+     //      double crevasse_calv_distance_horizontal = m_grid->dx();
+     //
+     //      my_crevasse_calv_distance_counter += 1.0;
+     //	//my_crevasse_calv_distance_mean += crevasse_calv_distance_horizontal;
+     //      my_crevasse_calv_distance_max = std::max(my_crevasse_calv_distance_max, crevasse_calv_distance_horizontal);
+     //
+     //    } else if (m.next_to_ice(i, j) && ice_thickness(i, j) > 0.0 &&
+     //	       m_total_h(i, j) >= total_ice_thickness) {
+     //      // Potentially partly filled boxes
+     //
+     //      double fraction_coverage = std::min(Href(i, j) / ice_thickness(i, j), 1.0);
+     //      double crevasse_calv_distance_horizontal = m_grid->dx() * fraction_coverage;
+     //  
+     //      my_crevasse_calv_distance_counter += fraction_coverage;
+     //	//my_crevasse_calv_distance_mean += crevasse_calv_distance_horizontal;
+     //      my_crevasse_calv_distance_max = std::max(my_crevasse_calv_distance_max, crevasse_calv_distance_horizontal);
+     //    }
   }
 
   double velocity_max = 0.0,
@@ -482,16 +372,10 @@ MaxTimestep CrevassesCalving::max_timestep(const double sea_level=0.0) {
 
   my_velocity = units::convert(m_sys, my_velocity, "m year-1", "m seconds-1");
   velocity_max = GlobalMax(m_grid->com, my_velocity);
-  velocity_max = std::max(velocity_max*scaler_of_modeled_speed, assumed_speed_maximum);
-
-     //if (crevasse_calv_distance_counter > 0.0) {
-     //  crevasse_calv_distance_mean /= crevasse_calv_distance_counter;
-     //} else {
-     //  crevasse_calv_distance_mean = 0.0;
-     //}
-
-  double denom = crevasse_calv_distance_max / m_grid->dx();
-  const double epsilon = units::convert(m_sys, 0.001 / (m_grid->dx() + m_grid->dy()), "seconds", "years");
+  if (crevasse_calv_distance_counter > 0) {
+    velocity_max = 
+      std::max(velocity_max*scaler_of_modeled_speed, assumed_speed_maximum);
+  }
 
   double dt = crevasse_calv_distance_max / velocity_max;
 
@@ -546,18 +430,25 @@ void CrevassesCalving::update_strain_rates() {
  *
  * @return 0 on success
  */
-void CrevassesCalving::
-  update_water_table_crevasses(IceModelVec2S &m_crevasse_dw_in,
-			       IceModelVec2S &crevasse_dw) {
+void CrevassesCalving::update_water_table_crevasses(IceModelVec2S &crevasse_dw_input,
+						    IceModelVec2S &crevasse_dw_return) {
+                                                    //ccr-future: IceModelVec2S &crevasse_dwdt,
+                                                    //ccr-future: const IceModelVec2S &smb) {
 
-  IceModelVec::AccessList list;
-  list.add(m_crevasse_dw_in);
-  list.add(crevasse_dw);
-
-  for (Points pt(*m_grid); pt; pt.next()) {
-    const int i = pt.i(), j = pt.j();
-    crevasse_dw(i,j) = m_crevasse_dw_in(i,j);
-  }
+  crevasse_dw_return.copy_from(crevasse_dw_input);
+  
+  //IceModelVec::AccessList list;
+  //list.add(crevasse_dw_input);
+  //list.add(crevasse_dw_return);
+  ////ccr-future: list.add(crevasse_dwdt);
+  //
+  //double factor = exp(-dt/dt_factor);
+  //const double factor = 1.0;
+  //for (Points p(*m_grid); p; p.next()) {
+  //  const int i = p.i(), j = p.j();
+  //  crevasse_dw_return(i,j) = crevasse_dw_input(i,j) * factor; //ccr-future:  + crevasse_dwdt(i, j);
+  //  crevasse_dw_return(i,j) = std::max(crevasse_dw_return(i,j),  m_dw0);
+  //}
 }
 
 
@@ -586,11 +477,11 @@ void CrevassesCalving::
 
   MaskQuery mask(pism_mask);
 
-  const double A_cold = m_config->get_double("Paterson-Budd_A_cold");
-  const double A_warm = m_config->get_double("Paterson-Budd_A_warm");
-  const double Q_cold = m_config->get_double("Paterson-Budd_Q_cold");
-  const double Q_warm = m_config->get_double("Paterson-Budd_Q_warm");
-  const double crit_temp = m_config->get_double("Paterson-Budd_critical_temperature");
+  const double A_cold = m_config->get_double("Paterson_Budd_A_cold");
+  const double A_warm = m_config->get_double("Paterson_Budd_A_warm");
+  const double Q_cold = m_config->get_double("Paterson_Budd_Q_cold");
+  const double Q_warm = m_config->get_double("Paterson_Budd_Q_warm");
+  const double crit_temp = m_config->get_double("Paterson_Budd_critical_temperature");
   const double R = m_config->get_double("ideal_gas_constant");
   const double p_air = m_config->get_double("surface_pressure");
   const double &ice_density = m_ice_density; //m_config->get_double("ice_density");
@@ -606,9 +497,9 @@ void CrevassesCalving::
   list.add(Href);
   list.add(m_strain_rates);
   list.add(m_thk_loss);
-  list.add(crevasse_dw);//list.add(m_crevasse_dw);
-  list.add(surface_h);  //list.add(m_surface_h);
-  list.add(bottom_h);   //list.add(m_bottom_h);
+  list.add(crevasse_dw);
+  list.add(surface_h);
+  list.add(bottom_h);
   list.add(m_total_h);
   list.add(T3);
   list.add(bed);
@@ -620,9 +511,10 @@ void CrevassesCalving::
     double A, Re0, Re1, R_iceg;
 
     // Compute fields 
-    surface_h(i, j) = 0.0; //m_surface_h(i, j) = 0.0;
-    bottom_h(i, j) = 0.0;  //m_bottom_h(i, j) = 0.0;
     m_total_h(i, j) = 0.0;
+    surface_h(i, j) = 0.0;
+    bottom_h(i, j) = 0.0;
+
     //if (mask.ice_margin(i, j)) {
     if (mask.icy(i, j)) {
       unsigned int k = 0; 
@@ -647,19 +539,20 @@ void CrevassesCalving::
       }
 
 
-      //?? Re0 = 2.0 * pow(( abs(m_strain_rates(i, j, 0)) /A),(1.0/Glen_n_ssa)); // principal component 0
-      //?? Re1 = 2.0 * pow(( abs(m_strain_rates(i, j, 1)) /A),(1.0/Glen_n_ssa)); // principal component 1
+      //?? Re0 = 2.0 * pow(( fabs(m_strain_rates(i, j, 0)) /A),(1.0/Glen_n_ssa)); // principal component 0
+      //?? Re1 = 2.0 * pow(( fabs(m_strain_rates(i, j, 1)) /A),(1.0/Glen_n_ssa)); // principal component 1
       
       Re0 = 2.0 * pow(( std::max(m_strain_rates(i, j, 0),0.0) /A),(1.0/Glen_n_ssa)); // principal component 0
       Re1 = 2.0 * pow(( std::max(m_strain_rates(i, j, 1),0.0) /A),(1.0/Glen_n_ssa)); // principal component 1
 
-
       
       R_iceg = sqrt(Re0*Re0+Re1*Re1)/(ice_density/standard_gravity);
       
-      surface_h(i, j) = R_iceg + fresh_water_density/ice_density * crevasse_dw(i, j); //m_surface_h(i, j) = 
-      bottom_h(i, j) = (1.0/(sea_water_density-1.0)) * std::max(R_iceg-Hab, 0.0); //m_bottom_h(i, j) = // std::max( , 0.) avoids unphysical negative values
-      m_total_h(i, j) = surface_h(i, j) + bottom_h(i, j); //m_surface_h(i, j) + m_bottom_h(i, j);
+      surface_h(i, j) = 
+	R_iceg + fresh_water_density/ice_density * crevasse_dw(i, j);
+      bottom_h(i, j) = // std::max(, 0) avoids unphysical negative values
+	(1.0/(sea_water_density-1.0)) * std::max(R_iceg-Hab, 0.0);
+      m_total_h(i, j) = surface_h(i, j) + bottom_h(i, j);
 
       // Box height weighted temperature (not used)
       //   const unsigned int ks = m_grid->kBelowHeight(thk(i, j));
@@ -673,30 +566,6 @@ void CrevassesCalving::
       //      // Check if Href is the correct variable // FIXMEE
       //      if ( Href(i, j) < Hab+dz1 ) break;  // leave the loop, when the integrated height plus the next layer exceeds the ice thickness
       //     }
-//ccr-m_      if (m_ice_density*Href(i, j) < depth) {
-//ccr-m_	// floating ice: ice thickness below sea level is less than bedroch depth
-//ccr-m_	Hab = 0.0;
-//ccr-m_      } else {
-//ccr-m_	// ice thickness below water exceeds bedrock depth
-//ccr-m_	Hab = Href(i, j) - m_sea_water_density * depth;
-//ccr-m_      }
-//ccr-m_      double p = m_p_air + m_ice_density * m_standard_gravity * Href(i, j);
-//ccr-m_      double T_pa = Tice - beta * p;
-//ccr-m_      
-//ccr-m_      if (T_pa < m_crit_temp) {
-//ccr-m_	A = m_A_cold * exp(-m_Q_cold/(m_R*T_pa));
-//ccr-m_      } else {
-//ccr-m_	A = m_A_warm * exp(-m_Q_warm/(m_R*T_pa));
-//ccr-m_      }
-//ccr-m_      
-//ccr-m_      Re0 = 2.0 * pow(( std::max(m_strain_rates(i, j, 0),0.0) /A),(1.0/m_Glen_n_ssa)); // principal component 0, 1st eigenvalue
-//ccr-m_      Re1 = 2.0 * pow(( std::max(m_strain_rates(i, j, 1),0.0) /A),(1.0/m_Glen_n_ssa)); // principal component 1, 2nd eigenvalue
-//ccr-m_      
-//ccr-m_      R_iceg = sqrt(Re0*Re0+Re1*Re1)/(m_ice_density/m_standard_gravity);
-//ccr-m_      
-//ccr-m_      m_surface_h(i, j) = R_iceg + m_fresh_water_density/m_ice_density * crevasse_dw(i, j);
-//ccr-m_      m_bottom_h(i, j) = (1.0/(m_sea_water_density-1.0)) * std::max(R_iceg-Hab, 0.0); // std::max( , 0.) avoids unphysical negative values
-//ccr-m_      m_total_h(i, j) = m_surface_h(i, j) + m_bottom_h(i, j);
     }
   }
   // Update ghosted fields
@@ -705,7 +574,6 @@ void CrevassesCalving::
   m_total_h.update_ghosts();
 
 }
-
 //ccr ------------------
 
 
@@ -743,7 +611,7 @@ void CrevassesCalving::
  * @return 0 on success
  */
 void CrevassesCalving::remove_narrow_tongues(IceModelVec2Int &pism_mask,
-                                         IceModelVec2S &ice_thickness) {
+					     IceModelVec2S &ice_thickness) {
   MaskQuery mask(pism_mask);
 
   IceModelVec::AccessList list;

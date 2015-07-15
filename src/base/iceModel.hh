@@ -157,6 +157,7 @@ class IceModel {
   friend class IceModel_crevasses_calv_flux_2D;
   friend class IceModel_crevasses_calv_flux_2D_cumulative;
   friend class IceModel_crevasses_dw;
+  //ccr-future: friend class IceModel_crevasses_dwdt;
   //ccr -- end
 public:
   // see iceModel.cc for implementation of constructor and destructor:
@@ -298,14 +299,12 @@ protected:
     land_flux_2D_cumulative,  //!< cumulative flux on land (incl. lakes)
     ocean_flux_2D_cumulative; //!< cumulative flux on the ocean (excl. lakes)
 
-  // some more diagnostics/internals
-  //public: //??? fixme
   IceModelVec2S crevasses_calv_flux_2D,//!< crevasses calving
     crevasses_calv_flux_2D_cumulative, //!< cumulative crevasses calving
-    surface_crevasses_h,  //!< surface crevasses depth
-    bottom_crevasses_h,   //!< bottom crevasses depth
+    crevasses_surface_h,  //!< surface crevasses depth
+    crevasses_bottom_h,   //!< bottom crevasses depth
     crevasses_dw;         //!< water table in crevasses
-
+    //ccr-future: crevasses_dwdt;       //!< temporal change of the water table in crevasses
 
 
 public:  IceModelVec2S* get_geothermal_flux();

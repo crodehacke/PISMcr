@@ -69,16 +69,17 @@ void IceModel::do_calving() {
   // determine if surface and bottom crevasses meet, which leads to
   // calving.
   if (crevasses_calving != NULL) {
-    IceModelVec2S &surface_h = surface_crevasses_h;
-    IceModelVec2S &bottom_h = bottom_crevasses_h;
+    IceModelVec2S &surface_h = crevasses_surface_h;
+    IceModelVec2S &bottom_h = crevasses_bottom_h;
     IceModelVec2S &crevasse_dw = crevasses_dw;
     IceModelVec2S &crevasse_flux_2D = crevasses_calv_flux_2D;
-    const IceModelVec2S &bed_topo = beddef->bed_elevation();
     const double sea_level = ocean->sea_level_elevation();
+    //ccr-future: IceModelVec2S &crevasse_dwdt = crevasses_dwdt; 
+    //ccr-future: IceModelVec2S &smb = climatic_mass_balance;
 
     crevasses_calving->update(dt, vMask, vHref, ice_thickness,
     			      surface_h, bottom_h, crevasse_dw,
-			      crevasse_flux_2D, bed_topo, T3, sea_level);
+			      crevasse_flux_2D, sea_level); //ccr-future:, crevasse_dwdt, smb);
   }
 
   if (ocean_kill_calving != NULL) {

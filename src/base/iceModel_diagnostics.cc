@@ -98,6 +98,20 @@ void IceModel::init_diagnostics() {
   if (ocean_flux_2D_cumulative.was_created()) {
     diagnostics["ocean_flux_2D_cumulative"] = new IceModel_ocean_flux_2D_cumulative(this);
   }
+
+
+  if (m_config->get_string("calving_methods").find("crevasses_calving") != std::string::npos ||
+      m_config->get_boolean("do_crevasses_calving") == true){
+
+//    if (crevasses_calv_flux_2D.was_created()) {
+//      diagnostics["crevasses_calv_flux_2D"] = new IceModel_crevasses_calv_flux_2D(this);
+//    }
+//
+//    if (crevasses_calv_flux_2D_cumulative.was_created()) {
+//      diagnostics["crevasses_calv_flux_2D_cumulative"] = new IceModel_crevasses_calv_flux_2D_cumulative(this);
+//    }
+  }
+
   //ccr -- end
 
 
@@ -151,6 +165,12 @@ void IceModel::init_diagnostics() {
   ts_diagnostics["land_flux_cumulative"]  = new IceModel_land_flux_cumulative(this);
   ts_diagnostics["ocean_flux"] = new IceModel_ocean_flux(this);
   ts_diagnostics["ocean_flux_cumulative"] = new IceModel_ocean_flux_cumulative(this);
+
+  if (m_config->get_string("calving_methods").find("crevasses_calving") != std::string::npos ||
+      m_config->get_boolean("do_crevasses_calving") == true) {
+    ts_diagnostics["crevasses_calv_flux"] = new IceModel_crevasses_calv_flux(this);
+    ts_diagnostics["crevasses_calv_flux_cumulative"] = new IceModel_crevasses_calv_flux_cumulative(this);
+  }
   //ccr -- end
 
   // Get diagnostics supported by the stress balance object:
@@ -1640,7 +1660,43 @@ void IceModel_ocean_flux_cumulative::update(double a, double b) {
 
   m_ts->append(value, a, b);
 }
+  //ccr -- crevasses
+IceModel_crevasses_calv_flux::IceModel_crevasses_calv_flux(IceModel *m)
+  : TSDiag<IceModel>(m) {
 
+  // set metadata:
+  m_ts = new DiagnosticTimeseries(*m_grid, "crevasses_calv_flux", m_time_dimension_name);
+
+  m_ts->metadata().set_string("units", "kg s-1");
+  m_ts->dimension_metadata().set_string("units", m_time_units);
+  m_ts->metadata().set_string("long_name", "crevasses-driven discharge (calving & icebergs) flux");
+  m_ts->metadata().set_string("comment", "positive means ice gain");
+  m_ts->rate_of_change = true;
+}
+
+void IceModel_crevasses_calv_flux::update(double a, double b) {
+  double value = model->crevasses_calv_flux_cumulative;
+
+  m_ts->append(value, a, b);
+}
+
+IceModel_crevasses_calv_flux_cumulative::IceModel_crevasses_calv_flux_cumulative(IceModel *m)
+  : TSDiag<IceModel>(m) {
+
+  // set metadata:
+  m_ts = new DiagnosticTimeseries(*m_grid, "crevasses_calv_flux_cumulative", m_time_dimension_name);
+
+  m_ts->metadata().set_string("units", "kg");
+  m_ts->dimension_metadata().set_string("units", m_time_units);
+  m_ts->metadata().set_string("long_name", "cumulative crevasses-driven discharge (calving & icebergs) flux");
+  m_ts->metadata().set_string("comment", "positive means ice gain");
+}
+
+void IceModel_crevasses_calv_flux_cumulative::update(double a, double b) {
+  double value = model->crevasses_calv_flux_cumulative;
+
+  m_ts->append(value, a, b);
+}
   //ccr -- end
 
 IceModel_dHdt::IceModel_dHdt(IceModel *m)

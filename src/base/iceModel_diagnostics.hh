@@ -485,48 +485,39 @@ public:
 };
 //ccr --- begin
 
-//! \brief Reports the crevasses calving flux -crevasses_calving
-//class IceModel_crevasses_calv_flux : public Diag<IceModel>
-//{
-//public:
-//  IceModel_crevasses_calv_flux(IceModel *m, IceGrid &g, PISMVars &my_vars);
-//  virtual PetscErrorCode update(PetscReal a, PetscReal b);
-//};
-//
-////! \brief Reports the cumulative crevasses calving flux -crevasses_calving
-//class IceModel_crevasses_calv_flux_cumulative : public PISMTSDiag<IceModel>
-//{
-//public:
-//  IceModel_crevasses_calv_flux_cumulative(IceModel *m, IceGrid &g, PISMVars &my_vars);
-//  virtual PetscErrorCode update(PetscReal a, PetscReal b);
-//};
-//
-//
-////ccr --- end
-//
-//
-////! \brief Reports the cumulative crevasses calving flux -crevasses_calving
-//class IceModel_crevasses_calv_flux_2D_cumulative : public PISMDiag<IceModel>
-//{
-//public:
-//  IceModel_crevasses_calv_flux_2D_cumulative(IceModel *m, IceGrid &g, PISMVars &my_vars);
-//  virtual PetscErrorCode compute(IceModelVec* &result);
-//};
-//
-////! \brief Computes cumulative crevasses_calv_flux, the calving flux due to the "-crevasses_calving"
-////! mechanism.
-//class IceModel_crevasses_calv_flux_2D : public PISMDiag<IceModel>
-//{
-//public:
-//  IceModel_crevasses_calv_flux_2D(IceModel *m, IceGrid &g, PISMVars &my_vars);
-//  virtual PetscErrorCode compute(IceModelVec* &result);
-//  virtual PetscErrorCode update_cumulative();
-//protected:
-//  IceModelVec2S last_crevasses_calv_flux_cumulative;
-//  PetscReal last_report_time;
-//};
-//
-////ccr ---
+//! \brief Reports the crevasses calving flux
+class IceModel_crevasses_calv_flux : public TSDiag<IceModel>
+{
+public:
+  IceModel_crevasses_calv_flux(IceModel *m);
+  virtual void update(double a, double b);
+};
+
+//! \brief Reports the cumulative crevasses calving flux
+class IceModel_crevasses_calv_flux_cumulative : public TSDiag<IceModel>
+{
+public:
+  IceModel_crevasses_calv_flux_cumulative(IceModel *m);
+  virtual void update(double a, double b);
+};
+
+//ccr --- end
+//! \brief Reports the 2D crevasses calving flux
+class IceModel_crevasses_calv_flux_2D : public Diag<IceModel>
+{
+public:
+  IceModel_crevasses_calv_flux_2D(IceModel *m);
+  virtual IceModelVec::Ptr compute();
+};
+
+//! \brief Reports the 2D cumulative crevasses calving flux
+class IceModel_crevasses_calv_flux_2D_cumulative : public Diag<IceModel>
+{
+public:
+  IceModel_crevasses_calv_flux_2D_cumulative(IceModel *m);
+  virtual IceModelVec::Ptr compute();
+};
+//ccr ---
 
 //! \brief Reports the 2D land flux.
 class IceModel_land_flux_2D : public Diag<IceModel>

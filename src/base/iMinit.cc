@@ -203,6 +203,40 @@ void IceModel::model_state_setup() {
       nonneg_flux_2D_cumulative.set(0.0);
     }
   }
+  //ccr -- begin
+  if (land_flux_2D_cumulative.was_created()) {
+    if (input_file.is_set()) {
+      m_log->message(2,
+                 "* Trying to read cumulative nonneg flux from '%s'...\n",
+                 input_file->c_str());
+      land_flux_2D_cumulative.regrid(input_file, OPTIONAL, 0.0);
+    } else {
+      land_flux_2D_cumulative.set(0.0);
+    }
+  }
+
+  if (ocean_flux_2D_cumulative.was_created()) {
+    if (input_file.is_set()) {
+      m_log->message(2,
+                 "* Trying to read cumulative nonneg flux from '%s'...\n",
+                 input_file->c_str());
+      ocean_flux_2D_cumulative.regrid(input_file, OPTIONAL, 0.0);
+    } else {
+      ocean_flux_2D_cumulative.set(0.0);
+    }
+  }
+
+  if (crevasses_calv_flux_2D_cumulative.was_created()) {
+    if (input_file.is_set()) {
+      m_log->message(2,
+                 "* Trying to read cumulative nonneg flux from '%s'...\n",
+                 input_file->c_str());
+      crevasses_calv_flux_2D_cumulative.regrid(input_file, OPTIONAL, 0.0);
+    } else {
+      crevasses_calv_flux_2D_cumulative.set(0.0);
+    }
+  }
+  //ccr -- end
 
   if (input_file.is_set()) {
     PIO nc(m_grid->com, "netcdf3");
@@ -258,12 +292,31 @@ void IceModel::model_state_setup() {
       ocean_flux_cumulative = run_stats.get_double("ocean_flux_cumulative");
     }
 
-//ccr    if (run_stats.has_attribute("crevasses_calv_flux_cumulative")) {
-//ccr      crevasses_calv_flux_cumulative = run_stats.get_double("crevasses_calv_flux_cumulative");
-//ccr    }
-
-
+    if (run_stats.has_attribute("crevasses_calv_flux_cumulative")) {
+      crevasses_calv_flux_cumulative = run_stats.get_double("crevasses_calv_flux_cumulative");
+    }
   }
+
+
+  if (m_config->get_string("calving_methods").find("crevasses_calving") != std::string::npos ||
+      m_config->get_boolean("do_crevasses_calving") == true) {
+    if (crevasses_surface_h.was_created()) {
+      crevasses_surface_h.set(0.0);
+    }
+
+    if (crevasses_bottom_h.was_created()) {
+      crevasses_bottom_h.set(0.0);
+    }
+
+    if (crevasses_dw.was_created()) {
+      crevasses_dw.set(0.0);
+    }
+
+    //ccr-future: if (crevasses_dwdt.was_created()) {
+    //ccr-future:   crevasses_dwdt.set(0.0);
+    //ccr-future: }
+  }
+
 
   compute_cell_areas();
 
