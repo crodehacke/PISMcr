@@ -1,3 +1,13 @@
+# PISMdev
+Parallel Ice Sheet Model work of crodehacke; Original code at https://github.com/pism/pism
+
+
+########### Below the information from the original PISM side ##############
+
+
+
+
+
 PISM, a Parallel Ice Sheet Model
 ================================
 
