@@ -199,10 +199,15 @@ std::set<std::string> Vars::keys() const {
     result.insert(i->first);
   }
 
+  std::map<std::string,VecPtr>::const_iterator j;
+  for (j = m_variables_shared.begin(); j != m_variables_shared.end(); ++j) {
+    result.insert(j->first);
+  }
+
   return result;
 }
 
-void Vars::add_shared(IceModelVec::Ptr variable) {
+void Vars::add_shared(VecPtr variable) {
 
   const SpatialVariableMetadata &m = variable->metadata();
   std::string name = variable->get_name();
@@ -229,7 +234,7 @@ void Vars::add_shared(IceModelVec::Ptr variable) {
 }
 
 
-void Vars::add_shared(IceModelVec::Ptr variable, const std::string &name) {
+void Vars::add_shared(VecPtr variable, const std::string &name) {
 
   if (m_variables_shared.find(name) != m_variables_shared.end()) {
     throw RuntimeError::formatted("Vars::add_shared(): an IceModelVec with the name '%s'"

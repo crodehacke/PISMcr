@@ -16,6 +16,8 @@
 // along with PISM; if not, write to the Free Software
 // Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
+#include <cmath>
+
 #include "SIAFD.hh"
 #include "PISMBedSmoother.hh"
 #include "base/enthalpyConverter.hh"
@@ -161,7 +163,7 @@ void SIAFD::update(const IceModelVec2V &vel_input, bool fast) {
   The alternative method, when `surface_gradient_method` = `eta`, transforms
   the thickness to something more regular and differentiates that. We get back
   to the gradient of the surface by applying the chain rule. In particular, as
-  shown in [\ref CDDSV] for the flat bed and \f$n=3\f$ case, if we define
+  shown in [\ref Vazquezetal2003] for the flat bed and \f$n=3\f$ case, if we define
 
   \f[\eta = H^{(2n+2)/n}\f]
 
@@ -1008,7 +1010,7 @@ double SIAFD::grainSizeVostok(double age_seconds) const {
       l = j;
     }
   }
-  if ((r == l) || (fabs(r - l) > 1)) {
+  if ((r == l) || (abs(r - l) > 1)) {
     throw RuntimeError("binary search in grainSizeVostok: oops");
   }
   // Linear interpolation on the interval
