@@ -1,11 +1,20 @@
-# PISMdev
-Parallel Ice Sheet Model work of crodehacke; Original code at https://github.com/pism/pism
+PISMdev
+=======
 
+Parallel Ice Sheet Model (PISM) work of crodehacke
 
-########### Below the information from the original PISM side ##############
+**Note**
+* Original code could be found at [github.com/pism/pism](https://github.com/pism/pism)
+* Related full documentations at [www.pism-docs.org](http://www.pism-docs.org)
+* More details are given below.
 
+The development presented here is supported by the
+* [European Research Council](http://erc.europa.eu) under the [European Community's Seventh Framework Programme (FP7/2007-2013)](http://ec.europa.eu/research/fp7/index_en.cfm?pg=documents)/ERC grant agreement 610055 as part of the [Ice2Ice project](http://www.ice2ice.eu)
+* Nordic Center of Excellence [eSTICC](https://esticc.net) (_eScience Tool for Investigating Climate Change in northern high latitudes_) funded by [Nordforsk](http://www.nordforsk.org) (grant 57001)
 
+Thanks to various collaborators 
 
+## Below the original information from the PISM source
 
 
 PISM, a Parallel Ice Sheet Model
